@@ -28,7 +28,7 @@ function parse(text){const lines=text.split(/\r?\n/).map(s=>s.trim()).filter(Boo
 const mrz=getMRZ(text);
 const given=get(/(?:given\s*name|first\s*name)\s*[:\-]?\s*(.*)$/i).replace(/[^a-zA-Z .'-]/g,' ').trim();
 const surname=get(/(?:surname|last\s*name)\s*[:\-]?\s*(.*)$/i).replace(/[^a-zA-Z .'-]/g,' ').trim();
-const labeledName=get(/^(?:name|full\s*name)\s*[:\-]\s*(.*)$/i).replace(/[^a-zA-Z .'-]/g,' ').trim();
+const labeledName=get(/^(?!.*(?:father|mother|spouse|guardian|emergency|contact))[^\n]{0,16}\b(?:full\s*name|name)\s*:\s*([A-Z][A-Z .'-]{3,})$/i).replace(/[^a-zA-Z .'-]/g,' ').trim();
 const name=labeledName||mrz?.name||[given,surname].filter(Boolean).join(' ');
 const passport=get(/(?:passport\s*(?:no\.?|number|#)|document\s*no\.?)\s*[:#-]?\s*([A-Z0-9 ]{0,20})/i).replace(/\s/g,'').toUpperCase();
 const datePattern=/\d{4}[-./]\d{1,2}[-./]\d{1,2}|\d{1,2}[-./ ](?:\d{1,2}|[A-Z]{3})[-./ ]\d{4}/i;
