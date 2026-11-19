@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101c32">
+  <meta name="description" content="Housemaid CV App - image upload and preview, first development slice">
+  <title>Housemaid CV | Image Workspace</title>
+  <style>
+    :root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color:#17233b;background:#f4f7fc;font-synthesis:none}
+    *{box-sizing:border-box}body{margin:0;min-height:100vh}.top{background:#101c32;color:white;padding:20px 0}.wrap{max-width:880px;margin:auto;padding:0 20px}.brand{display:flex;align-items:center;gap:12px;font-weight:750;font-size:18px}.logo{width:38px;height:38px;border-radius:11px;background:#d2edec;color:#143d48;display:grid;place-items:center;font-weight:900}.sub{font-size:13px;color:#b8c6dc;margin:4px 0 0 50px}
+    main{padding:34px 20px 48px}.intro h1{font-size:clamp(25px,4vw,36px);margin:0 0 7px;letter-spacing:-.03em}.intro p{color:#627088;line-height:1.55;margin:0 0 24px}.panel{background:#fff;border:1px solid #e1e7f0;border-radius:20px;padding:24px;box-shadow:0 10px 36px rgba(24,46,85,.05)}.section{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}.section h2{font-size:18px;margin:0}.tag{font-size:12px;background:#ebf7f3;color:#18745f;padding:7px 10px;border-radius:99px;font-weight:700}
+    .drop{border:2px dashed #a7b9d0;border-radius:16px;min-height:230px;background:#f9fbfe;display:flex;align-items:center;justify-content:center;text-align:center;padding:25px;transition:.2s;cursor:pointer}.drop:hover,.drop.drag{border-color:#3169ca;background:#edf5ff}.upload-icon{font-size:34px;display:block;margin-bottom:10px}.drop strong{font-size:16px}.drop p{color:#66758c;font-size:13px;margin:9px 0 18px}.btn{border:0;border-radius:10px;background:#2358b9;color:#fff;padding:12px 17px;font-size:14px;font-weight:700;cursor:pointer}.btn:focus-visible,.drop:focus-visible{outline:3px solid #81b1ff;outline-offset:3px}.btn.secondary{background:#edf1f8;color:#253950}.hidden{display:none!important}
+    .preview{margin-top:20px;display:grid;grid-template-columns:minmax(0,1fr) 250px;gap:18px}.photo{background:#eef3fa;border-radius:14px;min-height:180px;display:flex;align-items:center;justify-content:center;overflow:hidden}.photo img{display:block;max-width:100%;max-height:480px;object-fit:contain}.details{background:#f7f9fd;border-radius:14px;padding:17px;overflow-wrap:anywhere}.details h3{margin:0 0 13px;font-size:16px}.details dt{font-size:12px;color:#64728a;margin:12px 0 3px}.details dd{margin:0;font-weight:600;font-size:13px}.details button{margin-top:20px}.notice{font-size:12px;color:#748097;margin-top:18px;line-height:1.6}.error{color:#b42318;font-size:13px;margin:12px 0 0}footer{text-align:center;color:#8b97a9;font-size:12px;margin-top:23px}
+    @media(max-width:650px){main{padding-top:25px}.panel{padding:17px}.preview{grid-template-columns:1fr}.section{align-items:flex-start}.tag{white-space:nowrap}}
+  </style>
+</head>
+<body>
+  <header class="top"><div class="wrap"><div class="brand"><span class="logo">CV</span>Housemaid CV Workspace</div><p class="sub">Simple tools. Small steps. Real progress.</p></div></header>
+  <main class="wrap">
+    <div class="intro"><h1>Candidate Image Upload</h1><p>Start by uploading an image from your phone or computer. Preview it instantly before we build the next step.</p></div>
+    <section class="panel" aria-labelledby="uploadTitle">
+      <div class="section"><h2 id="uploadTitle">Image workspace</h2><span class="tag">Slice 01</span></div>
+      <input id="fileInput" type="file" accept="image/jpeg,image/png,image/webp,image/gif" class="hidden" aria-label="Choose candidate image">
+      <div id="dropZone" class="drop" role="button" tabindex="0" aria-label="Choose or drop an image">
+        <div><span class="upload-icon" aria-hidden="true">🖼️</span><strong>Choose a candidate image</strong><p>JPG, PNG, WEBP or GIF • Maximum 10 MB<br>Or drag and drop an image here</p><button id="chooseBtn" class="btn" type="button">Choose image</button></div>
+      </div>
+      <p id="error" class="error hidden" role="alert"></p>
+      <div id="preview" class="preview hidden" aria-live="polite">
+        <div class="photo"><img id="previewImage" alt="Preview of chosen candidate image"></div>
+        <div class="details"><h3>Image details</h3><dl><dt>File name</dt><dd id="fileName"></dd><dt>File size</dt><dd id="fileSize"></dd><dt>Image dimensions</dt><dd id="dimensions">Loading…</dd></dl><button class="btn secondary" id="removeBtn" type="button">Remove image</button></div>
+      </div>
+      <p class="notice">🔒 This first version previews the image only in your browser. It does not upload or store files on a server. OCR and candidate data extraction will come in a later slice. Avoid using real passport images on shared devices.</p>
+    </section>
+    <footer>Housemaid CV App · Development Slice 01</footer>
+  </main>
+  <script>
+    (() => {
+      const input=document.getElementById('fileInput'),drop=document.getElementById('dropZone'),choose=document.getElementById('chooseBtn'),preview=document.getElementById('preview'),img=document.getElementById('previewImage'),error=document.getElementById('error');let activeUrl=null;
+      const clear=()=>{if(activeUrl){URL.revokeObjectURL(activeUrl);activeUrl=null}img.removeAttribute('src');input.value='';preview.classList.add('hidden');drop.classList.remove('hidden');document.getElementById('dimensions').textContent='Loading…';error.classList.add('hidden')};
+      const fail=message=>{error.textContent=message;error.classList.remove('hidden')};
+      const select=file=>{error.classList.add('hidden');if(!file)return;const types=['image/jpeg','image/png','image/webp','image/gif'];if(!types.includes(file.type)){fail('Please choose a JPG, PNG, WEBP or GIF image.');return}if(file.size>10*1024*1024){fail('This image is larger than 10 MB. Please choose a smaller one.');return}
+        if(activeUrl)URL.revokeObjectURL(activeUrl);activeUrl=URL.createObjectURL(file);img.onload=()=>{document.getElementById('dimensions').textContent=img.naturalWidth+' × '+img.naturalHeight+' px'};img.onerror=()=>{clear();fail('This file could not be displayed as an image.')};img.src=activeUrl;document.getElementById('fileName').textContent=file.name;document.getElementById('fileSize').textContent=(file.size/1024/1024).toFixed(2)+' MB';drop.classList.add('hidden');preview.classList.remove('hidden')};
+      choose.addEventListener('click',e=>{e.stopPropagation();input.click()});drop.addEventListener('click',()=>input.click());drop.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();input.click()}});input.addEventListener('change',()=>select(input.files[0]));document.getElementById('removeBtn').addEventListener('click',clear);
+      drop.addEventListener('dragover',e=>{e.preventDefault();drop.classList.add('drag')});drop.addEventListener('dragleave',()=>drop.classList.remove('drag'));drop.addEventListener('drop',e=>{e.preventDefault();drop.classList.remove('drag');select(e.dataTransfer.files[0])});
+    })();
+  </script>
+</body>
+</html>
