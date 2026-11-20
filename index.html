@@ -3,13 +3,13 @@
 <style>body{font:16px system-ui;background:#f4f7fb;color:#15243a;margin:0}main{max-width:760px;margin:35px auto;padding:0 16px}section{background:white;border:1px solid #dde5ef;border-radius:14px;padding:22px;margin:16px 0}h1{font-size:28px}label{display:block;margin:13px 0 5px;font-weight:600}input,textarea{box-sizing:border-box;width:100%;padding:11px;border:1px solid #bdcad9;border-radius:8px;font:inherit}textarea{height:130px}button{background:#2459b9;color:white;border:0;border-radius:8px;padding:12px 18px;cursor:pointer;margin:12px 8px 0 0}button:disabled{opacity:.5}img{max-width:100%;max-height:280px;display:block;margin-top:15px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:0 16px}@media(max-width:550px){.grid{display:block}}small{color:#61718a}#status{font-weight:600}</style>
 <main><h1>Passport MRZ Scanner</h1><p>One scan. Read the two MRZ lines at the bottom of a passport. Review before use.</p>
 <section><label>Passport image</label><input type="file" id="file" accept="image/*"><img id="preview" hidden><button id="scan" disabled>Scan MRZ</button><p id="status">Choose a passport image.</p><small>Free Tesseract.js OCR runs in your browser. The language model downloads on first use; images are not sent to our server.</small></section>
-<section><h2>Extracted details</h2><div class="grid"><div><label>Full name</label><input id="name"></div><div><label>Passport number</label><input id="passport"></div><div><label>Date of birth</label><input id="dob"></div><div><label>Expiry date</label><input id="doe"></div><div><label>District (manual)</label><input id="district" placeholder="Not encoded in MRZ"></div></div><p id="validation"></p></section>
-<section><label>Raw MRZ OCR (editable)</label><textarea id="raw" placeholder="Paste the two MRZ lines here to test without scanning"></textarea><button id="parse">Parse text</button></section></main>
+<section><h2>Extracted details</h2><div class="grid"><div><label>Full name</label><input id="name"></div><div><label>Passport number</label><input id="passport"></div><div><label>Date of birth</label><input id="dob"></div><div><label>Expiry date</label><input id="doe"></div><div><label>District (place of birth)</label><input id="district" placeholder="Review or enter district"></div></div><p id="validation"></p></section>
+<section><label>Raw passport OCR (editable)</label><textarea id="raw" placeholder="Paste the two MRZ lines here to test without scanning"></textarea><button id="parse">Parse text</button></section></main>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
 <script>
 const $=id=>document.getElementById(id);
 let worker=null,busy=false;
-$('file').onchange=()=>{const f=$('file').files[0];if(!f)return;$('preview').src=URL.createObjectURL(f);$('preview').hidden=false;$('scan').disabled=false};
+$('file').onchange=()=>{const f=$('file').files[0];$('raw').value='';parse('');$('validation').textContent='';if(!f)return;$('preview').src=URL.createObjectURL(f);$('preview').hidden=false;$('scan').disabled=false};
 const digit=s=>{let sum=0;for(let i=0;i<s.length;i++){const c=s[i],v=c==='<'?0:/\d/.test(c)?+c:c.charCodeAt(0)-55;sum+=v*[7,3,1][i%3]}return String(sum%10)};
 const date=(s,birth)=>{if(!/^\d{6}$/.test(s))return '';let y=2000+ +s.slice(0,2);const now=new Date().getFullYear();if(birth&&y>now)y-=100;if(!birth&&y<now-15)y+=100;const iso=y+'-'+s.slice(2,4)+'-'+s.slice(4,6);return !Number.isNaN(Date.parse(iso))?iso:''};
 function parse(text){
@@ -27,58 +27,50 @@ const score=checks.filter(Boolean).length;
 const item={name:(given+' '+surname).trim(),passport:checks[0]?p.replace(/</g,''):'',dob:checks[1]?date(dob,true):'',doe:checks[2]?date(exp,false):'',score};
 if(!best||item.score>best.score)best=item;
 }}
-// Prefer readable printed passport labels when MRZ letters are joined or corrupted.
-const rows=text.toUpperCase().split(/\r?\n/).map(s=>s.trim());
-const clean=s=>s.replace(/[^A-Z ]/g,' ').replace(/\s+/g,' ').trim();
-const valueAfter=(label)=>{
- for(let i=0;i<rows.length;i++)if(label.test(rows[i])){
-  for(let j=i+1;j<=Math.min(i+2,rows.length-1);j++){
-   const v=clean(rows[j]);if(/^(?:MD|MST|ABU|MOHAMMAD|[A-Z]{3,})(?: [A-Z]{3,}){0,3}$/.test(v)&&!/(?:NAME|PASSPORT|NATIONALITY|COUNTRY|GIVEN|SURNAME|BANGLADESH)/.test(v))return v;
+const rows=text.toUpperCase().split(/\r?\n/).map(row=>row.trim()).filter(Boolean);
+const clean=value=>value.replace(/[.]/g,' ').replace(/\s+/g,' ').trim();
+const valid=value=>/^[A-Z]+(?: [A-Z]+){0,6}$/.test(value)&&
+ !/\b(?:PASSPORT|NAME|NAMES|SURNAME|PLACE|BIRTH|DATE|GIVEN|NATIONALITY|ADDRESS|FATHER|MOTHER|PERSONAL|DATA|SIGNATURE|SEX)\b/.test(value);
+function labeled(label){
+ for(let i=0;i<rows.length;i++){
+  const match=label.exec(rows[i]);
+  if(!match)continue;
+  const tail=rows[i].slice(match.index+match[0].length).replace(/^[\s:/-]+/,'');
+  for(const raw of [tail,rows[i+1]||'']){
+   const value=clean(raw);
+   if(valid(value))return value;
   }
- }return '';
-};
-const printedSurname=valueAfter(/\bSURNAME\b/);
-const printedGiven=valueAfter(/\bGIVEN\s*NAME\b/);
-let printedName=printedGiven&&printedSurname?printedGiven+' '+printedSurname:'';
-// OCR often appends short junk words to Given Name; prefer a clean name
-// from the personal-data heading when it agrees with the printed surname.
-const header=text.toUpperCase().split(/FATHER|MOTHER|PERMANENT ADDRESS|PEOPLE.S REPUBLIC/)[0];
-const headerLines=header.split(/\r?\n/).map(s=>s.replace(/[^A-Z ]/g,' ').replace(/\s+/g,' ').trim());
-const headerMatch=headerLines.map(s=>s.match(/\b(MD|MST|ABU|MOHAMMAD)\s+([A-Z]{3,})(?:\s+([A-Z]{3,}))?/)).find(Boolean);
-if(headerMatch&&printedSurname&&headerMatch[3]===printedSurname)printedName=[headerMatch[1],headerMatch[2],headerMatch[3]].join(' ');
-else if(printedGiven&&printedSurname){
- const words=printedGiven.split(' ');
- const mrzGiven=best?.name?.slice(0,-printedSurname.length).trim()||'';
- const firstTwo=words.slice(0,2).join(' ');
- if(words.length>2&&mrzGiven.replace(/[^A-Z]/g,'').includes(firstTwo.replace(/ /g,'')))printedName=firstTwo+' '+printedSurname;
+ }
+ return '';
 }
-if(!printedName){
- const first=rows.slice(0,Math.max(1,rows.findIndex(s=>/FATHER|MOTHER|PERMANENT ADDRESS/i.test(s)))).map(clean);
- const candidate=first.find(s=>/\b(?:MD|MST|ABU|MOHAMMAD)\s+[A-Z]{3,}(?:\s+[A-Z]{3,}){0,2}\b/.test(s));
- if(candidate){const m=candidate.match(/\b(?:MD|MST|ABU|MOHAMMAD)\s+[A-Z]{3,}(?:\s+[A-Z]{3,}){0,2}\b/);if(m)printedName=m[0]}
-}
-// Use the personal-data name only when it agrees with the MRZ surname.
-// This avoids swallowing OCR noise after the given name.
-const mrzSurname=lines.map(s=>s.match(/^P<BGD([A-Z]{3,}?)(?:<[LK])?<<|^P<BGD([A-Z]{3,})<[LK]<MD</)).find(Boolean);
-const surnameHint=mrzSurname?(mrzSurname[1]||mrzSurname[2]):'';
-const personalName=headerLines.map(s=>s.match(/\\b(MD|MST)\\s+([A-Z]{3,})\\s+([A-Z]{3,})\\b/)).find(m=>m&&m[3]===surnameHint);
-if(personalName)printedName=personalName[1]+' '+personalName[2]+' '+personalName[3];
-if(best&&printedName)best.name=printedName;
-for(const id of ['name','passport','dob','doe'])$(id).value=best?.[id]||'';
-$('validation').textContent=best?'MRZ detected · '+best.score+'/3 checks passed. Verify all fields.':'MRZ not found. Try a sharper image or paste the MRZ lines.';
+const surname=labeled(/\bSURNAME\b/);
+const given=labeled(/\bGIVEN\s*NAMES?\b/);
+const birthPlace=labeled(/\bPLACE\s+OF\s+BIRTH\b/);
+const mrz=lines.map(line=>line.match(/^P<BGD([A-Z]+?)(?:<[LK])?<+[LK]?<*([A-Z][A-Z<]*)$/)).find(Boolean);
+const surnames=[mrz?.[1],surname].filter(Boolean);
+const stop=rows.findIndex(row=>/\b(?:FATHER|MOTHER|PERMANENT ADDRESS)\b/.test(row));
+const personal=rows.slice(0,stop<0?rows.length:stop)
+ .map(row=>clean(row.replace(/^.*?\b(?:FULL NAME|NAME)\s*[:/-]\s*/,'')))
+ .filter(row=>valid(row)&&row.includes(' '))
+ .find(row=>surnames.some(last=>row.endsWith(' '+last)) &&
+   (given?row.split(' ')[0]===given.split(' ')[0]:true));
+const printed=given&&surname?given+' '+surname:'';
+const fullName=personal||best?.name||printed||'';
+$('name').value=fullName;
+$('district').value=birthPlace;
+for(const id of ['passport','dob','doe'])$(id).value=best?.[id]||'';
+if(best)best.name=fullName;
+$('validation').textContent=best?'MRZ detected · '+best.score+'/3 checks passed. Verify all fields.':'MRZ not found. Review the printed fields and check the image.';
 return best;
 }
 $('parse').onclick=()=>parse($('raw').value);
 $('scan').onclick=async()=>{
-if(busy)return;busy=true;$('scan').disabled=true;$('status').textContent='Reading MRZ…';
+if(busy)return;busy=true;$('file').disabled=true;$('scan').disabled=true;$('status').textContent='Reading MRZ…';
 try{
 if(!worker)worker=await Tesseract.createWorker('eng',1);
-const image=$('preview');const canvas=document.createElement('canvas');const w=image.naturalWidth,h=image.naturalHeight;
-if(!w||!h)throw Error('Image not loaded');
-canvas.width=w;canvas.height=Math.round(h*.34);canvas.getContext('2d').drawImage(image,0,h-canvas.height,w,canvas.height,0,0,w,canvas.height);
-await worker.setParameters({tessedit_char_whitelist:'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789<',preserve_interword_spaces:'1'});
-const result=await worker.recognize(canvas);
+await worker.setParameters({preserve_interword_spaces:'1'});
+const result=await worker.recognize($('file').files[0]);
 $('raw').value=result.data.text;parse(result.data.text);$('status').textContent='Scan complete. Review the fields.';
-}catch(e){$('status').textContent='Scan failed: '+e.message}finally{busy=false;$('scan').disabled=false}
+}catch(e){$('status').textContent='Scan failed: '+e.message}finally{busy=false;$('file').disabled=false;$('scan').disabled=false}
 };
 </script></html>
