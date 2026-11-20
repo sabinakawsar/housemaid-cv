@@ -59,13 +59,13 @@ const rawPassport=get(/(?:passport\s*(?:no\.?|number|#)|document\s*no\.?|passpor
 const rawPassportLooksValid=/^(?=.*\d)[A-Z0-9]{8,9}$/.test(rawPassport);
 const passport=mrz?.checks?.passport?mrz.passport:(rawPassportLooksValid?rawPassport:(mrz?.passport||''));
 const datePattern=/\d{4}[-./]\d{1,2}[-./]\d{1,2}|\d{1,2}[-./ ](?:\d{1,2}|[A-Z]{3})[-./ ]\d{4}/i;
-const readDate=regex=>{for(let i=0;i<lines.length;i++){if(!regex.test(lines[i]))continue;const chunk=lines.slice(i,Math.min(lines.length,i+6)).join(' ');const match=chunk.match(datePattern);if(match){const value=normalizeDate(match[0]);if(value)return value}}return ''};
-const dob=readDate(/(?:date\s*of\s*(?:birth|bifth|bith)|birth\s*(?:date|daje)|dob)\b/i);
-const doe=readDate(/(?:date\s*of\s*(?:expiry|expir[yi]|expi?ry)|expiry\s*date|expiration\s*date|date\s*of\s*expiration|doe)\b/i);
+const readDate=regex=>{for(let i=0;i<lines.length;i++){if(!regex.test(lines[i]))continue;const chunk=lines.slice(i,Math.min(lines.length,i+16)).join(' ');const match=chunk.match(datePattern);if(match){const value=normalizeDate(match[0]);if(value)return value}}return ''};
+const dob=readDate(/(?:date\s*of\s*(?:birth|bifth|bith|birt|b1rth)|birth\s*(?:date|daje)|dob)\b/i);
+const doe=readDate(/(?:date\s*of\s*(?:expiry|expir[yi]|expi?ry|expi)|expiry\s*date|expiration\s*date|date\s*of\s*expiration|doe)\b/i);
 // District is taken from Place of Birth, with explicit district as a fallback.
 const explicitDistrict=tidy(get(/(?:district|home\s*district)\s*[:\-]?/i));
 const upper=text.toUpperCase();
-const placeContext=lines.map((line,i)=>/place\s*of\s*birth|place\s*of\s*bifth|place\s*of\s*bith|জন্মস্থান/i.test(line)?lines.slice(i,Math.min(lines.length,i+7)).join(' '):'').join(' ').toUpperCase();
+const placeContext=lines.map((line,i)=>/place\s*of\s*birth|place\s*of\s*bifth|place\s*of\s*bith|place\s*of\s*birt|জন্মস্থান/i.test(line)?lines.slice(i,Math.min(lines.length,i+16)).join(' '):'').join(' ').toUpperCase();
 const placeDistrict=districtNames.find(x=>new RegExp('(?:^|[^A-Z])'+x+'(?:$|[^A-Z])').test(placeContext));
 const addressDistrict=districtNames.find(x=>new RegExp('(?:^|[^A-Z])'+x+'(?:$|[^A-Z])').test(upper))||'';
 const district=placeDistrict||explicitDistrict||addressDistrict;
