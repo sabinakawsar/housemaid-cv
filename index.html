@@ -72,7 +72,7 @@ function mrzName(source){
  for(const line of candidates.slice().reverse()){
   const match=line.match(/^P<BGD([A-Z]+)<<([A-Z]+(?:<[A-Z]+)*)(?:<<|<{3,}|$)/);
   if(!match)continue;
-  const surname=match[1],given=match[2].replace(/<+/g,' ').trim();
+  const surname=match[1],given=match[2].split('<').filter(t=>t&&!/^(?:L{4,}|K{4,}|[LK]{8,})$/.test(t)).join(' ').trim();
   if(surname.length>=3&&given.length>=2)return given+' '+surname;
  }
  return '';
