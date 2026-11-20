@@ -40,6 +40,18 @@ const valueAfter=(label)=>{
 const printedSurname=valueAfter(/\bSURNAME\b/);
 const printedGiven=valueAfter(/\bGIVEN\s*NAME\b/);
 let printedName=printedGiven&&printedSurname?printedGiven+' '+printedSurname:'';
+// OCR often appends short junk words to Given Name; prefer a clean name
+// from the personal-data heading when it agrees with the printed surname.
+const header=text.toUpperCase().split(/FATHER|MOTHER|PERMANENT ADDRESS|PEOPLE.S REPUBLIC/)[0];
+const headerLines=header.split(/\r?\n/).map(s=>s.replace(/[^A-Z ]/g,' ').replace(/\s+/g,' ').trim());
+const headerMatch=headerLines.map(s=>s.match(/\b(MD|MST|ABU|MOHAMMAD)\s+([A-Z]{3,})(?:\s+([A-Z]{3,}))?/)).find(Boolean);
+if(headerMatch&&printedSurname&&headerMatch[3]===printedSurname)printedName=[headerMatch[1],headerMatch[2],headerMatch[3]].join(' ');
+else if(printedGiven&&printedSurname){
+ const words=printedGiven.split(' ');
+ const mrzGiven=best?.name?.slice(0,-printedSurname.length).trim()||'';
+ const firstTwo=words.slice(0,2).join(' ');
+ if(words.length>2&&mrzGiven.replace(/[^A-Z]/g,'').includes(firstTwo.replace(/ /g,'')))printedName=firstTwo+' '+printedSurname;
+}
 if(!printedName){
  const first=rows.slice(0,Math.max(1,rows.findIndex(s=>/FATHER|MOTHER|PERMANENT ADDRESS/i.test(s)))).map(clean);
  const candidate=first.find(s=>/\b(?:MD|MST|ABU|MOHAMMAD)\s+[A-Z]{3,}(?:\s+[A-Z]{3,}){0,2}\b/.test(s));
