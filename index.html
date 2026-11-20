@@ -44,25 +44,14 @@ function mrzDate(raw,type){if(!/^\d{6}$/.test(raw))return '';const yy=+raw.slice
 function getMRZ(text){const lines=text.toUpperCase().split(/\r?\n/).map(s=>s.replace(/[^A-Z0-9<]/g,''));let best=null;for(let i=0;i<lines.length;i++){const a=lines[i];if(!a.startsWith('P<')||a.length<30)continue;for(let j=i+1;j<Math.min(lines.length,i+4);j++){const b=lines[j];if(b.length<40)continue;const namePart=a.slice(5).split('<<');const surname=(namePart[0]||'').replace(/<+/g,' ').trim();const given=(namePart[1]||'').split(/<{2,}/)[0].replace(/<+/g,' ').trim();const passport=b.slice(0,9).replace(/</g,'').replace(/O/g,'0');const passportCheck=checkDigit(b.slice(0,9))===b[9];const birth=b.slice(13,19).replace(/[OQD]/g,'0').replace(/[IL]/g,'1').replace(/S/g,'5').replace(/B/g,'8'),birthCheck=checkDigit(birth)===b[19]&&!!mrzDate(birth,'birth');const expiry=b.slice(21,27).replace(/[OQD]/g,'0').replace(/[IL]/g,'1').replace(/S/g,'5').replace(/B/g,'8'),expiryCheck=checkDigit(expiry)===b[27]&&!!mrzDate(expiry,'expiry');const score=[passportCheck,birthCheck,expiryCheck].filter(Boolean).length;const candidate={name:[given,surname].filter(Boolean).join(' '),passport:passportCheck?passport:'',dob:birthCheck?mrzDate(birth,'birth'):'',doe:expiryCheck?mrzDate(expiry,'expiry'):'',score,checks:{passport:passportCheck,birth:birthCheck,expiry:expiryCheck}};if(!best||score>best.score)best=candidate;}}return best}
 function parse(text){const lines=text.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);const get=(regex)=>{for(let i=0;i<lines.length;i++){const m=lines[i].match(regex);if(m){const v=(m[1]||'').trim();return v||lines[i+1]||''}}return ''};
 const mrz=getMRZ(text);
-// Candidate name comes ONLY from printed passport Surname + Given Name.
-// Restrict to the passport biodata page, excluding emergency contact/address pages.
+// Name ONLY from printed passport Given Name + Surname, never MRZ or emergency contact.
 const tidy=s=>String(s||'').toUpperCase().replace(/[^A-Z\s'-]/g,' ').replace(/\s+/g,' ').trim();
-const passportSections=text.split(/PEOPLE['’]?\s*S\s*REPUBLIC\s+OF\s+BANGLADESH/i).slice(1).map(part=>part.split(/P\s*[<«]\s*BGD/i)[0]);
-const biodata=passportSections.length?passportSections[passportSections.length-1].split(/\r?\n/).map(x=>x.trim()).filter(Boolean):[];
-// Collect printed values from both OCR passes; avoid treating OCR noise as a name.
-const allBiodata=passportSections.map(s=>s.split(/\r?\n/).map(x=>x.trim()).filter(Boolean));
-const words=s=>tidy(s).split(/\s+/).filter(w=>w.length>=2&&!/^(FN|LN|NAME|SURNAME|GIVEN|NATIONALITY|BANGLADESH|BGD)$/.test(w));
-const valueLine=s=>/^(?:[^\p{L}]*)(?:MD|MST|[A-Z]{3,})\b/iu.test(s.trim())&&!/passport|nationality|date|personal|authority|birth|signature|republic|bangladesh|country|type/i.test(s);
-function nameCandidates(label){const found=[];for(const lines of allBiodata){for(let i=0;i<lines.length;i++){if(!label.test(lines[i]))continue;for(let j=i+1;j<=Math.min(i+3,lines.length-1);j++){const raw=lines[j];if(/given\s*name|surname|sumame|nationality|date\s*of|place\s*of|passport|personal\s*no/i.test(raw))break;if(!valueLine(raw))continue;const w=words(raw);if(w.length){found.push(w);break}}}}return found}
-function commonPrefix(candidates){if(!candidates.length)return [];let prefix=candidates[0];for(const w of candidates.slice(1)){let n=0;while(n<Math.min(prefix.length,w.length)&&prefix[n]===w[n])n++;if(n)prefix=prefix.slice(0,n)}return prefix}
-const givenCandidates=nameCandidates(/\bgiven\s*name\b/i);
-const givenWords=commonPrefix(givenCandidates);
-let surnameCandidates=nameCandidates(/\b(?:surname|sumame)\b/i);
-// Some OCR scans corrupt the Surname label. Search the short area directly above Given Name.
-if(!surnameCandidates.some(w=>w[0]?.length>=4)){for(const lines of allBiodata){const idx=lines.findIndex(s=>/\bgiven\s*name\b/i.test(s));if(idx<0)continue;for(let j=Math.max(0,idx-4);j<idx;j++){const raw=lines[j];if(!valueLine(raw))continue;const w=words(raw);if(w.length&&w[0].length>=4){surnameCandidates.push(w);break}}}}
-const surnameWords=commonPrefix(surnameCandidates);
-const given=givenWords.join(' ');
-const surname=surnameWords.length?surnameWords[0]:'';
+const passportSections=text.split(/PEOPLE['’]?\s*S\s*REPUBLIC\s+OF\s+BANGLADESH/i).slice(1).map(s=>s.split(/P\s*[<«]\s*BGD/i)[0]);
+const biodata=passportSections.length?passportSections[passportSections.length-1].split(/\r?\n/).map(s=>s.trim()).filter(Boolean):[];
+function printedValues(label){const found=[];for(const section of passportSections){const rows=section.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);for(let i=0;i<rows.length;i++){if(!label.test(rows[i]))continue;const next=rows[i+1]||'';if(/nationality|given\s*name|surname|sumame|place\s*of\s*birth|date\s*of|passport/i.test(next))continue;const value=tidy(next);if(value&&value.length<=50)found.push(value)}}return found}
+const shortest=items=>items.sort((a,b)=>a.split(' ').length-b.split(' ').length||a.length-b.length)[0]||'';
+const given=shortest(printedValues(/\bgiven\s*name\b/i));
+const surname=shortest(printedValues(/\b(?:surname|sumame)\b/i));
 const name=given&&surname?given+' '+surname:'';
 const passport=get(/(?:passport\s*(?:no\.?|number|#)|document\s*no\.?)\s*[:#-]?\s*([A-Z0-9 ]{0,20})/i).replace(/\s/g,'').toUpperCase();
 const datePattern=/\d{4}[-./]\d{1,2}[-./]\d{1,2}|\d{1,2}[-./ ](?:\d{1,2}|[A-Z]{3})[-./ ]\d{4}/i;
