@@ -44,15 +44,19 @@ function mrzDate(raw,type){if(!/^\d{6}$/.test(raw))return '';const yy=+raw.slice
 function getMRZ(text){const lines=text.toUpperCase().split(/\r?\n/).map(s=>s.replace(/[^A-Z0-9<]/g,''));let best=null;for(let i=0;i<lines.length;i++){const a=lines[i];if(!a.startsWith('P<')||a.length<30)continue;for(let j=i+1;j<Math.min(lines.length,i+4);j++){const b=lines[j];if(b.length<40)continue;const namePart=a.slice(5).split('<<');const surname=(namePart[0]||'').replace(/<+/g,' ').trim();const given=(namePart[1]||'').split(/<{2,}/)[0].replace(/<+/g,' ').trim();const passport=b.slice(0,9).replace(/</g,'').replace(/O/g,'0');const passportCheck=checkDigit(b.slice(0,9))===b[9];const birth=b.slice(13,19).replace(/[OQD]/g,'0').replace(/[IL]/g,'1').replace(/S/g,'5').replace(/B/g,'8'),birthCheck=checkDigit(birth)===b[19]&&!!mrzDate(birth,'birth');const expiry=b.slice(21,27).replace(/[OQD]/g,'0').replace(/[IL]/g,'1').replace(/S/g,'5').replace(/B/g,'8'),expiryCheck=checkDigit(expiry)===b[27]&&!!mrzDate(expiry,'expiry');const score=[passportCheck,birthCheck,expiryCheck].filter(Boolean).length;const candidate={name:[given,surname].filter(Boolean).join(' '),passport:passportCheck?passport:'',dob:birthCheck?mrzDate(birth,'birth'):'',doe:expiryCheck?mrzDate(expiry,'expiry'):'',score,checks:{passport:passportCheck,birth:birthCheck,expiry:expiryCheck}};if(!best||score>best.score)best=candidate;}}return best}
 function parse(text){const lines=text.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);const get=(regex)=>{for(let i=0;i<lines.length;i++){const m=lines[i].match(regex);if(m){const v=(m[1]||'').trim();return v||lines[i+1]||''}}return ''};
 const mrz=getMRZ(text);
-// Name ONLY from printed passport Given Name + Surname, never MRZ or emergency contact.
+// Candidate name: top Personal Data name (before Father's Name), else printed passport fields.
 const tidy=s=>String(s||'').toUpperCase().replace(/[^A-Z\s'-]/g,' ').replace(/\s+/g,' ').trim();
 const passportSections=text.split(/PEOPLE['’]?\s*S\s*REPUBLIC\s+OF\s+BANGLADESH/i).slice(1).map(s=>s.split(/P\s*[<«]\s*BGD/i)[0]);
 const biodata=passportSections.length?passportSections[passportSections.length-1].split(/\r?\n/).map(s=>s.trim()).filter(Boolean):[];
+const top=text.split(/PEOPLE['’]?\s*S\s*REPUBLIC\s+OF\s+BANGLADESH/i)[0];
+const personal=top.match(/PERSONAL\s+DATA[\s\S]*?(?=FATHER['’]?S?\s*NAME|MOTHER['’]?S?\s*NAME|EMERGENCY\s+CONTACT)/i)?.[0]||'';
+const topNames=[...personal.matchAll(/\b(?:MD|MST|MOHAMMAD|MUHAMMAD)\s+[A-Z]{2,}(?:\s+[A-Z]{2,}){1,3}\b/g)].map(m=>m[0]);
+const topName=topNames[0]||'';
 function printedValues(label){const found=[];for(const section of passportSections){const rows=section.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);for(let i=0;i<rows.length;i++){if(!label.test(rows[i]))continue;const next=rows[i+1]||'';if(/nationality|given\s*name|surname|sumame|place\s*of\s*birth|date\s*of|passport/i.test(next))continue;const value=tidy(next);if(value&&value.length<=50)found.push(value)}}return found}
 const shortest=items=>items.sort((a,b)=>a.split(' ').length-b.split(' ').length||a.length-b.length)[0]||'';
 const given=shortest(printedValues(/\bgiven\s*name\b/i));
 const surname=shortest(printedValues(/\b(?:surname|sumame)\b/i));
-const name=given&&surname?given+' '+surname:'';
+const name=topName||(given&&surname?given+' '+surname:'');
 const passport=get(/(?:passport\s*(?:no\.?|number|#)|document\s*no\.?)\s*[:#-]?\s*([A-Z0-9 ]{0,20})/i).replace(/\s/g,'').toUpperCase();
 const datePattern=/\d{4}[-./]\d{1,2}[-./]\d{1,2}|\d{1,2}[-./ ](?:\d{1,2}|[A-Z]{3})[-./ ]\d{4}/i;
 const dob=(get(/(?:date\s*of\s*birth|birth\s*date|dob)\s*[:\-]?\s*(.*)$/i).match(datePattern)||[])[0]||'';
