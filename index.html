@@ -27,6 +27,25 @@ const score=checks.filter(Boolean).length;
 const item={name:(given+' '+surname).trim(),passport:checks[0]?p.replace(/</g,''):'',dob:checks[1]?date(dob,true):'',doe:checks[2]?date(exp,false):'',score};
 if(!best||item.score>best.score)best=item;
 }}
+// Prefer readable printed passport labels when MRZ letters are joined or corrupted.
+const rows=text.toUpperCase().split(/\r?\n/).map(s=>s.trim());
+const clean=s=>s.replace(/[^A-Z ]/g,' ').replace(/\s+/g,' ').trim();
+const valueAfter=(label)=>{
+ for(let i=0;i<rows.length;i++)if(label.test(rows[i])){
+  for(let j=i+1;j<=Math.min(i+2,rows.length-1);j++){
+   const v=clean(rows[j]);if(/^(?:MD|MST|ABU|MOHAMMAD|[A-Z]{3,})(?: [A-Z]{3,}){0,3}$/.test(v)&&!/(?:NAME|PASSPORT|NATIONALITY|COUNTRY|GIVEN|SURNAME|BANGLADESH)/.test(v))return v;
+  }
+ }return '';
+};
+const printedSurname=valueAfter(/\bSURNAME\b/);
+const printedGiven=valueAfter(/\bGIVEN\s*NAME\b/);
+let printedName=printedGiven&&printedSurname?printedGiven+' '+printedSurname:'';
+if(!printedName){
+ const first=rows.slice(0,Math.max(1,rows.findIndex(s=>/FATHER|MOTHER|PERMANENT ADDRESS/i.test(s)))).map(clean);
+ const candidate=first.find(s=>/\b(?:MD|MST|ABU|MOHAMMAD)\s+[A-Z]{3,}(?:\s+[A-Z]{3,}){0,2}\b/.test(s));
+ if(candidate){const m=candidate.match(/\b(?:MD|MST|ABU|MOHAMMAD)\s+[A-Z]{3,}(?:\s+[A-Z]{3,}){0,2}\b/);if(m)printedName=m[0]}
+}
+if(best&&printedName)best.name=printedName;
 for(const id of ['name','passport','dob','doe'])$(id).value=best?.[id]||'';
 $('validation').textContent=best?'MRZ detected · '+best.score+'/3 checks passed. Verify all fields.':'MRZ not found. Try a sharper image or paste the MRZ lines.';
 return best;
