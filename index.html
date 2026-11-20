@@ -48,8 +48,13 @@ const cleanPerson=s=>s.toUpperCase().replace(/[^A-Z .'-]/g,' ').replace(/\s+/g,'
 const fieldValue=(label)=>{for(let i=0;i<lines.length;i++){const line=lines[i];const match=line.match(label);if(!match)continue;let tail=line.slice(match.index+match[0].length).replace(/^[\s:\/\\-]+/,'');let value=cleanPerson(tail);if(value&&value.length>=3&&!/^(NAME|SURNAME|GIVEN|NATIONALITY|PERSONAL|DATE|PASSPORT|BGD|TYPE|COUNTRY)$/.test(value))return value;for(let j=i+1;j<=Math.min(i+3,lines.length-1);j++){const next=lines[j];if(/(?:nationality|passport|date of|personal no|place of|issuing|authority|father|mother|emergency)/i.test(next))break;value=cleanPerson(next);if(/^[A-Z][A-Z '-]{2,45}$/.test(value)&&!/(?:NAME|SURNAME|GIVEN|BANGLADESH|PEOPLE|REPUBLIC)/.test(value))return value}}return ''};
 const given=fieldValue(/(?:given\s*name|first\s*name)\b/i);
 const surname=fieldValue(/\bsurname\b/i);
-const labeledName=get(/^(?!.*(?:father|mother|spouse|guardian|emergency|contact))[^\n]{0,16}\b(?:full\s*name|name)\s*:\s*([A-Z][A-Z .'-]{3,})$/i).replace(/[^a-zA-Z .'-]/g,' ').trim();
-const name=labeledName||(given&&surname?given+' '+surname:'')||mrz?.name||'';
+// Passport personal-data fields take priority. Generic "Name:" often belongs to emergency contacts.
+const reliableNamePart=s=>/^[A-Z][A-Z '-]{1,44}$/.test(s)&&!/(?:NAME|SURNAME|GIVEN|NATIONALITY|PASSPORT|BANGLADESH|REPUBLIC|CONTACT|FATHER|MOTHER|EMERGENCY)/.test(s);
+const printedName=given&&surname&&reliableNamePart(given)&&reliableNamePart(surname)?given+' '+surname:'';
+const mrzName=mrz?.name||'';
+const mrzWords=mrzName.split(/\s+/).filter(Boolean);
+const reliableMrzName=mrz?.score===3&&mrzWords.length>=2&&mrzWords.every(w=>/^[A-Z]{2,20}$/.test(w)&&!/(.)\1{3,}/.test(w))?mrzName:'';
+const name=printedName||reliableMrzName||'';
 const passport=get(/(?:passport\s*(?:no\.?|number|#)|document\s*no\.?)\s*[:#-]?\s*([A-Z0-9 ]{0,20})/i).replace(/\s/g,'').toUpperCase();
 const datePattern=/\d{4}[-./]\d{1,2}[-./]\d{1,2}|\d{1,2}[-./ ](?:\d{1,2}|[A-Z]{3})[-./ ]\d{4}/i;
 const dob=(get(/(?:date\s*of\s*birth|birth\s*date|dob)\s*[:\-]?\s*(.*)$/i).match(datePattern)||[])[0]||'';
