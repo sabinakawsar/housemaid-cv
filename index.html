@@ -10,7 +10,7 @@ header{padding:20px 0}header>div{display:block;padding:0 20px}header strong{font
 <section class="panel"><h2>Image workspace</h2><div class="upload-zone"><strong>🖼️ Choose a candidate image</strong><p>JPG, PNG or WEBP · Maximum 10 MB</p><input id="image" type="file" accept="image/jpeg,image/png,image/webp" aria-label="Choose candidate image"></div><img id="preview" class="photo hidden" alt="Selected document preview"><div class="actions"><button id="scan" class="btn" disabled>Extract text</button><button id="clear" class="btn alt" type="button">Clear</button><span id="status" class="status" role="status">Choose an image to begin.</span></div><progress id="progress" class="hidden" max="100" value="0"></progress></section>
 <section class="panel"><h2>Extracted candidate details</h2><p class="hint">Raw OCR fields are used first. MRZ checksums are checked where possible, but all details still require visual confirmation against the original.</p><p id="mrzStatus" class="hint">MRZ: not scanned yet.</p><div class="row"><div class="field"><label for="name">Full name</label><input id="name" autocomplete="off"></div><div class="field"><label for="passport">Passport number</label><input id="passport" autocomplete="off"></div><div class="field"><label for="dob">Date of birth</label><input id="dob" placeholder="YYYY-MM-DD"></div><div class="field"><label for="doe">Passport expiry date</label><input id="doe" placeholder="YYYY-MM-DD"></div><div class="field"><label for="district">District (from Place of Birth)</label><input id="district"></div></div><div class="actions"><button id="copy" class="btn alt" type="button">Copy reviewed fields</button><button id="saveCandidate" class="btn" type="button">Save candidate locally</button><button id="cancelEdit" class="btn alt hidden" type="button">Cancel edit</button></div><p id="dbStatus" class="hint" role="status">Local database is loading…</p></section>
 <section class="panel"><h2>Saved candidates <span id="candidateCount" class="pill" style="display:inline-block">0</span></h2><p class="hint">Stored only in this browser on this device. Clearing site data or using another device will not preserve these records. Use fictional data only.</p><div class="actions"><input id="searchCandidates" type="search" placeholder="Search by name or district" aria-label="Search saved candidates" style="flex:1;min-width:180px;padding:11px;border:1px solid #cdd8e6;border-radius:9px"><button id="exportCandidates" type="button" class="btn alt">Export test JSON</button></div><div id="candidateList" style="margin-top:15px"></div></section><section class="panel"><h2>Raw OCR text</h2><div class="field"><label for="raw">Inspect or edit recognized text</label><textarea id="raw" rows="8" spellcheck="false"></textarea></div><button id="reparse" class="btn alt" type="button">Re-extract fields from text</button></section>
-<p class="hint">OCR may misread fields. MRZ check digits detect some OCR errors but do not authenticate a document. District is inferred from Place of Birth first; if that is unreadable, a fallback guess may be used. Confirm manually.</p>
+<p class="hint">OCR may misread fields. MRZ check digits detect some OCR errors but do not authenticate a document. Confirm any suggested district against the printed Place of Birth.</p>
 </main>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
 <script>
@@ -41,36 +41,165 @@ const normalizeDate=s=>{if(!s)return '';let t=s.trim().replace(/[.\/]/g,'-').rep
 const districtNames=['BAGERHAT','BANDARBAN','BARGUNA','BARISHAL','BARISAL','BHOLA','BOGURA','BOGRA','BRAHMANBARIA','CHANDPUR','CHAPAINAWABGANJ','CHATTOGRAM','CHITTAGONG','CHUADANGA','COXS BAZAR','COX BAZAR','CUMILLA','COMILLA','DHAKA','DINAJPUR','FARIDPUR','FENI','GAIBANDHA','GAZIPUR','GOPALGANJ','HABIGANJ','JAMALPUR','JASHORE','JESSORE','JHALOKATI','JHENAIDAH','JOYPURHAT','KHAGRACHHARI','KHULNA','KISHOREGANJ','KURIGRAM','KUSHTIA','LAKSHMIPUR','LALMONIRHAT','MADARIPUR','MAGURA','MANIKGANJ','MEHERPUR','MOULVIBAZAR','MUNSHIGANJ','MYMENSINGH','NAOGAON','NARAIL','NARAYANGANJ','NARSINGDI','NATORE','NETROKONA','NILPHAMARI','NOAKHALI','PABNA','PANCHAGARH','PATUAKHALI','PIROJPUR','RAJBARI','RAJSHAHI','RANGAMATI','RANGPUR','SATKHIRA','SHARIATPUR','SHERPUR','SIRAJGANJ','SUNAMGANJ','SYLHET','TANGAIL','THAKURGAON'];
 function checkDigit(str){const w=[7,3,1];let sum=0;for(let i=0;i<str.length;i++){const x=str[i],v=x==='<'?0:/[0-9]/.test(x)?+x:/[A-Z]/.test(x)?x.charCodeAt(0)-55:NaN;if(Number.isNaN(v))return null;sum+=v*w[i%3]}return String(sum%10)}
 function mrzDate(raw,type){if(!/^\d{6}$/.test(raw))return '';const yy=+raw.slice(0,2),mm=raw.slice(2,4),dd=raw.slice(4,6),now=new Date().getUTCFullYear();let year=2000+yy;if(type==='birth'&&year>now)year-=100;if(type==='expiry'&&year<now-15)year+=100;return normalizeDate(year+'-'+mm+'-'+dd)}
-function getMRZ(text){const lines=text.toUpperCase().split(/\r?\n/).map(s=>s.replace(/[^A-Z0-9<]/g,''));let best=null;for(let i=0;i<lines.length;i++){const a=lines[i];if(!a.startsWith('P<')||a.length<30)continue;for(let j=i+1;j<Math.min(lines.length,i+4);j++){const b=lines[j];if(b.length<40)continue;const namePart=a.slice(5).split('<<');const surname=(namePart[0]||'').replace(/<+/g,' ').trim();const given=(namePart[1]||'').split(/<{2,}/)[0].replace(/<+/g,' ').trim();const passport=b.slice(0,9).replace(/</g,'').replace(/O/g,'0');const passportCheck=checkDigit(b.slice(0,9))===b[9];const birth=b.slice(13,19).replace(/[OQD]/g,'0').replace(/[IL]/g,'1').replace(/S/g,'5').replace(/B/g,'8'),birthCheck=checkDigit(birth)===b[19]&&!!mrzDate(birth,'birth');const expiry=b.slice(21,27).replace(/[OQD]/g,'0').replace(/[IL]/g,'1').replace(/S/g,'5').replace(/B/g,'8'),expiryCheck=checkDigit(expiry)===b[27]&&!!mrzDate(expiry,'expiry');const score=[passportCheck,birthCheck,expiryCheck].filter(Boolean).length;const candidate={name:[given,surname].filter(Boolean).join(' '),passport,dob:mrzDate(birth,'birth'),doe:mrzDate(expiry,'expiry'),score,checks:{passport:passportCheck,birth:birthCheck,expiry:expiryCheck}};if(!best||score>best.score)best=candidate;}}return best}
-function parse(text){const lines=text.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);const get=(regex)=>{for(let i=0;i<lines.length;i++){const line=lines[i],m=line.match(regex);if(m){const inline=line.slice(m.index+m[0].length).replace(/^[\s:/.\\-]+/,'').trim();const v=(m[1]!==undefined?m[1]:inline).trim();return v||lines[i+1]||''}}return ''};
-const mrz=getMRZ(text);
-// Name ONLY from printed passport Given Name + Surname, never MRZ or emergency contact.
-const tidy=s=>String(s||'').toUpperCase().replace(/[^A-Z\s'-]/g,' ').replace(/\s+/g,' ').trim();
-const passportSections=text.split(/PEOPLE['’]?\s*S\s*REPUBLIC\s+OF\s+BANGLADESH/i).slice(1).map(s=>s.split(/P\s*[<«]\s*BGD/i)[0]);if(!passportSections.length)passportSections.push(text);
-const biodata=passportSections[passportSections.length-1].split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
-function printedValues(label){const found=[];for(const section of passportSections){const rows=section.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);for(let i=0;i<rows.length;i++){const match=rows[i].match(label);if(!match)continue;const inline=rows[i].slice(match.index+match[0].length).replace(/^[\s:/.\\-]+/,'').trim();const candidates=[inline,rows[i+1]||'',rows[i+2]||''];for(const raw of candidates){if(!raw||/(?:nationality|given\s*name|surname|sumame|place\s*of\s*birth|date\s*of|passport|personal\s*no|father|mother|emergency|address)/i.test(raw))continue;const value=tidy(raw);if(value&&value.length<=50){found.push(value);break}}}}return found}
-const shortest=items=>items.slice().sort((a,b)=>a.split(' ').length-b.split(' ').length||a.length-b.length)[0]||'';
-const given=shortest(printedValues(/\bgiven\s*name\b/i));
-const surname=shortest(printedValues(/\b(?:surname|sumame)\b/i));
-const labeledName=(()=>{for(const line of lines){if(!/(?:^|\s)(?:full\s*)?name\s*[:\-]/i.test(line)||/(?:father|mother|guardian|emergency|spouse|relationship|address)/i.test(line))continue;const match=line.match(/(?:^|\s)(?:full\s*)?name\s*[:\-]\s*(.*)$/i);if(match)return tidy(match[1])}return ''})();
-const personalName=tidy(text.split(/FATHER.?S?\s*NAME|MOTHER.?S?\s*NAME|EMERGENCY\s*CONTACT|PERMANENT\s*ADDRESS/i)[0].split(/\r?\n/).map(s=>tidy(s)).find(s=>/^(?:MD|MST|ABU|MOHAMMAD)\s+[A-Z]{3,}(?:\s+[A-Z]{3,}){1,2}$/.test(s))||'');
-const name=labeledName||personalName||(given&&surname?given+' '+surname:'');
-const rawPassport=get(/(?:passport\s*(?:no\.?|number|#)|document\s*no\.?|passport\s*n[0O]?)[\s:#-]*([A-Z0-9 ]{0,20})/i).replace(/[^A-Z0-9]/gi,'').toUpperCase();
-const rawPassportLooksValid=/^(?=.*\d)[A-Z0-9]{8,9}$/.test(rawPassport);
-const passport=mrz?.checks?.passport?mrz.passport:(rawPassportLooksValid?rawPassport:(mrz?.passport||''));
-const datePattern=/\d{4}[-./]\d{1,2}[-./]\d{1,2}|\d{1,2}[-./ ](?:\d{1,2}|[A-Z]{3})[-./ ]\d{4}/i;
-const readDate=regex=>{for(let i=0;i<lines.length;i++){if(!regex.test(lines[i]))continue;const chunk=lines.slice(i,Math.min(lines.length,i+16)).join(' ');const match=chunk.match(datePattern);if(match){const value=normalizeDate(match[0]);if(value)return value}}return ''};
-const dob=readDate(/(?:date\s*of\s*(?:birth|bifth|bith|birt|b1rth)|birth\s*(?:date|daje)|dob)\b/i);
-const doe=readDate(/(?:date\s*of\s*(?:expiry|expir[yi]|expi?ry|expi)|expiry\s*date|expiration\s*date|date\s*of\s*expiration|doe)\b/i);
-// District is taken from Place of Birth, with explicit district as a fallback.
-const explicitDistrict=tidy(get(/(?:district|home\s*district)\s*[:\-]?/i));
-const upper=text.toUpperCase();
-const placeContext=lines.map((line,i)=>/place\s*of\s*birth|place\s*of\s*bifth|place\s*of\s*bith|place\s*of\s*birt|জন্মস্থান/i.test(line)?lines.slice(i,Math.min(lines.length,i+16)).join(' '):'').join(' ').toUpperCase();
-const placeDistrict=districtNames.find(x=>new RegExp('(?:^|[^A-Z])'+x+'(?:$|[^A-Z])').test(placeContext));
-const addressDistrict=districtNames.find(x=>new RegExp('(?:^|[^A-Z])'+x+'(?:$|[^A-Z])').test(upper))||'';
-const district=placeDistrict||explicitDistrict||addressDistrict;
-$('name').value=name||mrz?.name||'';$('passport').value=passport||mrz?.passport||'';$('dob').value=dob||mrz?.dob||'';$('doe').value=doe||mrz?.doe||'';$('district').value=district;
-$('mrzStatus').textContent=mrz?'MRZ found: '+mrz.score+'/3 field checksums passed (passport number, birth date, expiry date). '+(mrz.score===3?'All three passed; visually verify.':'Unverified fields need manual review.'):'MRZ not detected; using label-based extraction. Review all fields.';
+// Keep printed fields near their labels. An address or issue date can be on the same page.
+const sectionBoundary = /(?:\b(?:dob|doe|doi)\b|full\s*name|date\s*of|birth\s*date|expir[ya]|place\s*of|district|(?:previous|old)\s*pass|passport\s*(?:no|number)|personal\s*no|nationality|surname|given\s*name|sex\b|issuing|authority|signature|address|contact|relationship|father|mother|guardian|DIP\s*\/|P\s*<)/i;
+function fieldValues(rows, label, extract, skipLabel) {
+  const found = new Set();
+  for (let i = 0; i < rows.length; i++) {
+    const match = label.exec(rows[i]);
+    if (!match || (skipLabel && skipLabel.test(rows[i]))) continue;
+    for (let j = i; j < Math.min(i + 4, rows.length); j++) {
+      const valueRow = j === i ? rows[i].slice(match.index + match[0].length) : rows[j];
+      const stop = valueRow.search(sectionBoundary);
+      const value = extract(stop < 0 ? valueRow : valueRow.slice(0, stop));
+      if (value) { found.add(value); break; }
+      if (j > i && stop >= 0) break;
+    }
+  }
+  return found;
+}
+function only(values) { return values.size === 1 ? [...values][0] : ''; }
+function numericOCR(value) {
+  return value.replace(/[OQD]/g, '0').replace(/[IL]/g, '1').replace(/S/g, '5').replace(/B/g, '8');
+}
+function checkedDate(block, type, lines, rowIndex) {
+  function validate(value) {
+    return /^\d{7}$/.test(value) && checkDigit(value.slice(0, 6)) === value[6]
+      ? mrzDate(value.slice(0, 6), type) : '';
+  }
+  const digits = numericOCR(block);
+  if (digits.length === 7) return validate(digits);
+  if (digits.length !== 8) return '';
+  // A deleted character must produce a unique valid date corroborated in another OCR line.
+  const dates = new Set();
+  for (let k = 0; k < 7; k++) {
+    const candidate = digits.slice(0, k) + digits.slice(k + 1);
+    const date = validate(candidate);
+    if (date && lines.some((line, i) => i !== rowIndex && line.includes(candidate))) dates.add(date);
+  }
+  return only(dates);
+}
+function mrzName(row, printedText) {
+  const parts = row.slice(5).split('<<');
+  if (!parts[0] || !parts[1] || !/^[A-Z<]+$/.test(parts[0] + parts[1])) return '';
+  const given = parts[1].split(/<+/).filter(Boolean);
+  // Only split a fused token when its word boundary is visible in the printed OCR.
+  const repairs = new Map();
+  const printedWords = new Set(printedText.match(/[A-Z]+/g) || []);
+  for (const line of printedText.split('\n')) {
+    const words = line.match(/[A-Z]+/g) || [];
+    for (let i = 1; i < words.length; i++) {
+      const left = words[i - 1], right = words[i];
+      if (left.length < 3 || right.length < 3) continue;
+      const pair = left + ' ' + right;
+      for (const separator of ['', 'S', 'K', 'L']) {
+        const key = left + separator + right;
+        if (!repairs.has(key)) repairs.set(key, new Set());
+        repairs.get(key).add(pair);
+      }
+    }
+  }
+  return [...given.map(w => printedWords.has(w) ? w : (only(repairs.get(w) || new Set()) || w)),
+    parts[0].replace(/<+/g, ' ').trim()].join(' ');
+}
+function getMRZ(rows) {
+  const lines = rows.map(s => s.toUpperCase().replace(/[^A-Z0-9<]/g, ''));
+  const printed = rows.filter(s => !s.includes('<')).join('\n').toUpperCase();
+  const nameRow = /^P<[A-Z]{3}[A-Z<]{3,}/;
+  let best = null, name = '';
+  for (let i = 0; i < lines.length; i++) {
+    if (nameRow.test(lines[i])) {
+      const candidate = mrzName(lines[i], printed);
+      if (!name && candidate) name = candidate;
+    }
+    // Anchor the dates at the sex marker. A stray character can shift all fixed columns.
+    const match = /^([A-Z0-9<]{9})(\d)(?:[A-Z]{3}|B[A-Z0-9]GD|BG[A-Z0-9]D)([A-Z0-9]{5,9})([MF<])([0-9OQDILSB]{7})([A-Z0-9<]{10,})$/.exec(lines[i]);
+    const paired = lines.slice(Math.max(0, i - 3), i).some(line => nameRow.test(line));
+    if (!match) {
+      // Recover the checked passport number even if the rest of a paired data row is damaged.
+      if (paired && !best && lines[i].length >= 30) {
+        const head = /^([A-Z0-9<]{9})(\d)[A-Z]{2}/.exec(lines[i]);
+        if (head && /\d/.test(head[1]) && checkDigit(head[1]) === head[2]) {
+          best = { passport: head[1].replace(/<+$/, ''), dob: '', doe: '', score: 1 };
+        }
+      }
+      continue;
+    }
+    const passport = checkDigit(match[1]) === match[2] && /^[A-Z0-9]+<*$/.test(match[1])
+      ? match[1].replace(/<+$/, '') : '';
+    const dob = checkedDate(match[3], 'birth', lines, i);
+    const doe = checkedDate(match[5], 'expiry', lines, i);
+    const score = [passport, dob, doe].filter(Boolean).length;
+    if ((paired || score >= 2) && (!best || score > best.score)) best = { passport, dob, doe, score };
+  }
+  return best || name ? { passport: '', dob: '', doe: '', score: 0, ...best, name } : null;
+}
+function printedName(rows, mrz) {
+  // Read the holder's Name before relatives and the separate emergency contact subsection.
+  let contact = false, holder = '', standalone = '';
+  for (const row of rows) {
+    if (/personal\s+data|people.s\s+republic/i.test(row)) contact = false;
+    else if (/emergency\s+contact|relationship|spouse|father|mother|guardian|permanent\s+address/i.test(row)) contact = true;
+    if (contact || /given\s+name|sur\s*name/i.test(row)) continue;
+    if (!standalone && /^(?:MD|MST|ABU|MOHAMMAD)\s+[A-Z]{3,}(?:\s+[A-Z]{3,}){1,2}$/.test(row)) standalone = row;
+    const match = /(?:^|\s)(?:full\s+)?name\s*[:\-]\s*([A-Z][A-Z '-]{1,60})\s*[=|]*$/i.exec(row);
+    if (match) { holder = match[1].toUpperCase().trim().replace(/\s+/g, ' '); break; }
+  }
+  if (holder) return holder;
+  const clean = value => {
+    const trimmed = value.replace(/^[\s:|/=-]+|[\s:|/=-]+$/g, '').trim();
+    return /^[A-Z][A-Z' -]{1,55}$/i.test(trimmed) ? trimmed.toUpperCase().replace(/\s+/g, ' ') : '';
+  };
+  const given = only(fieldValues(rows, /\bgiven\s*name[s]?\b/i, clean));
+  const surname = only(fieldValues(rows, /\b(?:surname|sumame)\b/i, clean));
+  if (given && surname) return given + ' ' + surname;
+  return mrz?.name || standalone || given || surname;
+}
+function printedDate(value) {
+  const normalized = value.toUpperCase().replace(/(\d{1,2})\s*([A-Z0]{3})\s*[-. /]?\s*(\d{4})\b/g,
+    (_, day, month, year) => day + ' ' + month.replace(/0/g, 'O') + ' ' + year);
+  const matches = normalized.match(/\b(?:\d{4}[-./]\d{1,2}[-./]\d{1,2}|\d{1,2}[-./ ](?:\d{1,2}|[A-Z]{3})[-./ ]\d{4})\b/g) || [];
+  return only(new Set(matches.map(normalizeDate).filter(Boolean)));
+}
+function printedDistrict(rows) {
+  const label = /place\s*of\s*(?:birth|bifth|bith|birt)\b|জন্মস্থান/i;
+  function matchDistrict(value, fuzzy) {
+    const cleaned = ' ' + value.toUpperCase().replace(/['’]/g, '').replace(/[^A-Z]+/g, ' ') + ' ';
+    if (!fuzzy) return only(new Set(districtNames.filter(name => cleaned.includes(' ' + name + ' '))));
+    const fragments = cleaned.trim().split(/\s+/).filter(word => word.length >= 6);
+    return only(new Set(districtNames.filter(name => fragments.some(word =>
+      name.length > word.length && name.length - word.length <= 2 && name.endsWith(word)))));
+  }
+  const exact = fieldValues(rows, label, s => matchDistrict(s, false));
+  if (exact.size) return { value: only(exact), inferred: false };
+  const fallback = fieldValues(rows, label, s => matchDistrict(s, true));
+  if (fallback.size) return { value: only(fallback), inferred: true };
+  const explicit = fieldValues(rows, /^(?:home\s+)?district\b/i, s => matchDistrict(s, false));
+  return { value: only(explicit), inferred: false };
+}
+function parse(text) {
+  const rows = text.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+  const mrz = getMRZ(rows);
+  const currentNumber = /(?:\bpassport\s*(?:number\b|no\b\.?|#)|\bdocument\s*no\b\.?)/i;
+  const rawNumbers = fieldValues(rows, currentNumber,
+    value => (value.toUpperCase().match(/\b([A-Z]{1,2}\d{6,8})\b/g) || []).find(id => id.length >= 8 && id.length <= 9) || '', /(?:previous|old)\s+pass/i);
+  const printedBirth = fieldValues(rows, /date\s*of\s*(?:birth|bifth|bith|birt|b1rth)\b|\bbirth\s*date|\bdob\b/i, printedDate);
+  const printedExpiry = fieldValues(rows, /(?:date\s*of\s*(?:expiry|expir[yi]|expi?ry|expi|expiration)|expiry\s*date|expiration\s*date|doe)\b/i, printedDate);
+  const district = printedDistrict(rows);
+  const notes = [];
+  function reconcile(label, values, checked) {
+    const printed = only(values);
+    if (values.size > 1 || (printed && checked && printed !== checked)) notes.push('Review conflicting readings for ' + label + '.');
+    return printed || checked || '';
+  }
+  $('name').value = printedName(rows, mrz);
+  $('passport').value = reconcile('passport number', rawNumbers, mrz?.passport);
+  $('dob').value = reconcile('date of birth', printedBirth, mrz?.dob);
+  $('doe').value = reconcile('expiry date', printedExpiry, mrz?.doe);
+  $('district').value = district.value;
+  if (district.inferred && district.value) notes.push('Place of Birth is partially legible. Confirm the suggested district.');
+  $('mrzStatus').textContent = [mrz ? 'MRZ field checks passed: ' + mrz.score + '/3.' : 'Using printed OCR fields.',
+    ...notes, 'Review the fields against the original.'].join(' ');
 }
 $('reparse').addEventListener('click',()=>parse($('raw').value));
 $('scan').addEventListener('click',async()=>{if(busy||!url)return;busy=true;$('scan').disabled=true;$('clear').disabled=true;$('progress').classList.remove('hidden');$('progress').value=0;setStatus('Loading OCR engine…');try{if(!window.Tesseract)throw Error('OCR library unavailable. Check internet connection.');worker=await Tesseract.createWorker('eng',1,{logger:m=>{if(m.progress!=null)$('progress').value=Math.round(m.progress*100);if(m.status)setStatus(m.status+'…')}});const result=await worker.recognize(url);let combined=result.data.text||'';parse(combined);const firstComplete=['name','passport','dob','doe','district'].every(id=>$(id).value.trim().length>0);if(!firstComplete){setStatus('Some fields need a focused second scan…');try{const original=$('preview');const canvas=document.createElement('canvas');const w=original.naturalWidth,h=original.naturalHeight;if(w>0&&h>0){const sx=0,sy=Math.floor(h*.50),sw=w,sh=h-sy;canvas.width=Math.min(sw*2,2400);canvas.height=Math.min(sh*2,1600);const ctx=canvas.getContext('2d',{willReadFrequently:true});ctx.drawImage(original,sx,sy,sw,sh,0,0,canvas.width,canvas.height);const data=ctx.getImageData(0,0,canvas.width,canvas.height);for(let i=0;i<data.data.length;i+=4){const gray=Math.round(data.data[i]*.299+data.data[i+1]*.587+data.data[i+2]*.114);const v=Math.max(0,Math.min(255,(gray-128)*1.7+128));data.data[i]=data.data[i+1]=data.data[i+2]=v}ctx.putImageData(data,0,0);const second=await worker.recognize(canvas);combined+='\n'+(second.data.text||'')}}catch(err){console.warn('Focused OCR unavailable',err)}}$('raw').value=combined;parse(combined);setStatus(firstComplete?'Extraction complete after one scan. Review all fields.':'Extraction complete after additional scan. Review all fields.')}catch(e){setStatus('OCR failed: '+(e.message||'Unknown error'))}finally{if(worker){await worker.terminate().catch(()=>{});worker=null}busy=false;$('scan').disabled=!url;$('clear').disabled=false;$('progress').classList.add('hidden')}});
