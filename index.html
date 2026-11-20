@@ -49,9 +49,20 @@ const mrz=getMRZ(text);
 const tidy=s=>String(s||'').toUpperCase().replace(/[^A-Z\s'-]/g,' ').replace(/\s+/g,' ').trim();
 const passportSections=text.split(/PEOPLE['’]?\s*S\s*REPUBLIC\s+OF\s+BANGLADESH/i).slice(1).map(part=>part.split(/P\s*[<«]\s*BGD/i)[0]);
 const biodata=passportSections.length?passportSections[passportSections.length-1].split(/\r?\n/).map(x=>x.trim()).filter(Boolean):[];
-function printedNext(label){for(let i=0;i<biodata.length;i++){if(!label.test(biodata[i]))continue;for(let j=i+1;j<=Math.min(i+2,biodata.length-1);j++){const raw=biodata[j];if(/(?:surname|sumame|given\s*name|place\s*of\s*birth|date\s*of|nationality|passport|personal\s*no|authority|signature)/i.test(raw))break;const value=tidy(raw);if(value&&value.length<=40)return value}}return ''}
-const given=printedNext(/\bgiven\s*name\b/i);
-const surname=printedNext(/\b(?:surname|sumame)\b/i);
+// Collect printed values from both OCR passes; avoid treating OCR noise as a name.
+const allBiodata=passportSections.map(s=>s.split(/\r?\n/).map(x=>x.trim()).filter(Boolean));
+const words=s=>tidy(s).split(/\s+/).filter(w=>w.length>=2&&!/^(FN|LN|NAME|SURNAME|GIVEN|NATIONALITY|BANGLADESH|BGD)$/.test(w));
+const valueLine=s=>/^(?:[^\p{L}]*)(?:MD|MST|[A-Z]{3,})\b/iu.test(s.trim())&&!/passport|nationality|date|personal|authority|birth|signature|republic|bangladesh|country|type/i.test(s);
+function nameCandidates(label){const found=[];for(const lines of allBiodata){for(let i=0;i<lines.length;i++){if(!label.test(lines[i]))continue;for(let j=i+1;j<=Math.min(i+3,lines.length-1);j++){const raw=lines[j];if(/given\s*name|surname|sumame|nationality|date\s*of|place\s*of|passport|personal\s*no/i.test(raw))break;if(!valueLine(raw))continue;const w=words(raw);if(w.length){found.push(w);break}}}}return found}
+function commonPrefix(candidates){if(!candidates.length)return [];let prefix=candidates[0];for(const w of candidates.slice(1)){let n=0;while(n<Math.min(prefix.length,w.length)&&prefix[n]===w[n])n++;if(n)prefix=prefix.slice(0,n)}return prefix}
+const givenCandidates=nameCandidates(/\bgiven\s*name\b/i);
+const givenWords=commonPrefix(givenCandidates);
+let surnameCandidates=nameCandidates(/\b(?:surname|sumame)\b/i);
+// Some OCR scans corrupt the Surname label. Search the short area directly above Given Name.
+if(!surnameCandidates.some(w=>w[0]?.length>=4)){for(const lines of allBiodata){const idx=lines.findIndex(s=>/\bgiven\s*name\b/i.test(s));if(idx<0)continue;for(let j=Math.max(0,idx-4);j<idx;j++){const raw=lines[j];if(!valueLine(raw))continue;const w=words(raw);if(w.length&&w[0].length>=4){surnameCandidates.push(w);break}}}}
+const surnameWords=commonPrefix(surnameCandidates);
+const given=givenWords.join(' ');
+const surname=surnameWords.length?surnameWords[0]:'';
 const name=given&&surname?given+' '+surname:'';
 const passport=get(/(?:passport\s*(?:no\.?|number|#)|document\s*no\.?)\s*[:#-]?\s*([A-Z0-9 ]{0,20})/i).replace(/\s/g,'').toUpperCase();
 const datePattern=/\d{4}[-./]\d{1,2}[-./]\d{1,2}|\d{1,2}[-./ ](?:\d{1,2}|[A-Z]{3})[-./ ]\d{4}/i;
