@@ -52,7 +52,7 @@ function printedValues(label){const found=[];for(const section of passportSectio
 const shortest=items=>items.slice().sort((a,b)=>a.split(' ').length-b.split(' ').length||a.length-b.length)[0]||'';
 const given=shortest(printedValues(/\bgiven\s*name\b/i));
 const surname=shortest(printedValues(/\b(?:surname|sumame)\b/i));
-const labeledName=tidy(get(/^\s*(?:full\s*name|name)\s*[:\-]?/i));
+const labeledName=(()=>{for(const line of lines){if(!/(?:^|\s)(?:full\s*)?name\s*[:\-]/i.test(line)||/(?:father|mother|guardian|emergency|spouse|relationship|address)/i.test(line))continue;const match=line.match(/(?:^|\s)(?:full\s*)?name\s*[:\-]\s*(.*)$/i);if(match)return tidy(match[1])}return ''})();
 const personalName=tidy(text.split(/FATHER.?S?\s*NAME|MOTHER.?S?\s*NAME|EMERGENCY\s*CONTACT|PERMANENT\s*ADDRESS/i)[0].split(/\r?\n/).map(s=>tidy(s)).find(s=>/^(?:MD|MST|ABU|MOHAMMAD)\s+[A-Z]{3,}(?:\s+[A-Z]{3,}){1,2}$/.test(s))||'');
 const name=labeledName||personalName||(given&&surname?given+' '+surname:'');
 const passport=get(/(?:passport\s*(?:no\.?|number|#)|document\s*no\.?|passport\s*n[0O]?)[\s:#-]*([A-Z0-9 ]{0,20})/i).replace(/[^A-Z0-9]/gi,'').toUpperCase();
