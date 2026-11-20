@@ -65,7 +65,20 @@ if(given){const parts=given.split(' '),n=names.find(n=>n[0]===parts[0]&&n[1]===p
 const n=names.find(n=>n[2]);if(n)return n.join(' ');
 const partial=names.find(n=>n[1]);return partial?partial.slice(0,2).join(' '):'';
 }
-const name=extractName(text);
+// MRZ name is structurally delimited, unlike OCR-noisy printed names.
+// Reject malformed delimiters and prefer a clean MRZ over guesses from printed lines.
+function mrzName(source){
+ const candidates=source.toUpperCase().split(/\r?\n/).map(s=>s.replace(/[^A-Z0-9<]/g,'')).filter(s=>s.startsWith('P<BGD'));
+ for(const line of candidates.slice().reverse()){
+  const match=line.match(/^P<BGD([A-Z]+)<<([A-Z]+(?:<[A-Z]+)*)(?:<<|<{3,}|$)/);
+  if(!match)continue;
+  const surname=match[1],given=match[2].replace(/<+/g,' ').trim();
+  if(surname.length>=3&&given.length>=2)return given+' '+surname;
+ }
+ return '';
+}
+const name=mrzName(text)||extractName(text);
+
 const passport=get(/(?:passport\s*(?:no\.?|number|#)|document\s*no\.?)\s*[:#-]?\s*([A-Z0-9 ]{0,20})/i).replace(/\s/g,'').toUpperCase();
 const datePattern=/\d{4}[-./]\d{1,2}[-./]\d{1,2}|\d{1,2}[-./ ](?:\d{1,2}|[A-Z]{3})[-./ ]\d{4}/i;
 const dob=(get(/(?:date\s*of\s*birth|birth\s*date|dob)\s*[:\-]?\s*(.*)$/i).match(datePattern)||[])[0]||'';
