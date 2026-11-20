@@ -44,19 +44,23 @@ function mrzDate(raw,type){if(!/^\d{6}$/.test(raw))return '';const yy=+raw.slice
 function getMRZ(text){const lines=text.toUpperCase().split(/\r?\n/).map(s=>s.replace(/[^A-Z0-9<]/g,''));let best=null;for(let i=0;i<lines.length;i++){const a=lines[i];if(!a.startsWith('P<')||a.length<30)continue;for(let j=i+1;j<Math.min(lines.length,i+4);j++){const b=lines[j];if(b.length<40)continue;const namePart=a.slice(5).split('<<');const surname=(namePart[0]||'').replace(/<+/g,' ').trim();const given=(namePart[1]||'').split(/<{2,}/)[0].replace(/<+/g,' ').trim();const passport=b.slice(0,9).replace(/</g,'').replace(/O/g,'0');const passportCheck=checkDigit(b.slice(0,9))===b[9];const birth=b.slice(13,19).replace(/[OQD]/g,'0').replace(/[IL]/g,'1').replace(/S/g,'5').replace(/B/g,'8'),birthCheck=checkDigit(birth)===b[19]&&!!mrzDate(birth,'birth');const expiry=b.slice(21,27).replace(/[OQD]/g,'0').replace(/[IL]/g,'1').replace(/S/g,'5').replace(/B/g,'8'),expiryCheck=checkDigit(expiry)===b[27]&&!!mrzDate(expiry,'expiry');const score=[passportCheck,birthCheck,expiryCheck].filter(Boolean).length;const candidate={name:[given,surname].filter(Boolean).join(' '),passport:passportCheck?passport:'',dob:birthCheck?mrzDate(birth,'birth'):'',doe:expiryCheck?mrzDate(expiry,'expiry'):'',score,checks:{passport:passportCheck,birth:birthCheck,expiry:expiryCheck}};if(!best||score>best.score)best=candidate;}}return best}
 function parse(text){const lines=text.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);const get=(regex)=>{for(let i=0;i<lines.length;i++){const m=lines[i].match(regex);if(m){const v=(m[1]||'').trim();return v||lines[i+1]||''}}return ''};
 const mrz=getMRZ(text);
-// Name: ONLY the first explicit "Name" field in top-to-bottom OCR order.
-// Never use MRZ or given/surname fallbacks.
+// Candidate name comes ONLY from printed passport Surname + Given Name.
+// Restrict to the passport biodata page, excluding emergency contact/address pages.
 const tidy=s=>String(s||'').toUpperCase().replace(/[^A-Z\s'-]/g,' ').replace(/\s+/g,' ').trim();
-const isMRZ=s=>/P[<«]{1,2}BGD|[A-Z0-9<]{25,}/i.test(s);
-function valueAfterLabel(regex){for(let i=0;i<lines.length;i++){const line=lines[i];if(isMRZ(line))continue;const m=line.match(regex);if(!m)continue;const tail=line.slice(m.index+m[0].length).replace(/^[\s:\/\\\-]+/,'');for(const raw of [tail,lines[i+1]||'']){if(!raw||isMRZ(raw)||/^(?:relationship|father|mother|address|telephone|nationality|date|passport|place|issuing|authority|emergency)\b/i.test(raw))continue;const value=tidy(raw);if(value.length>=2&&value.length<=55)return value}}return ''}
-const name=valueAfterLabel(/(?:^|[\s:])name\s*[:：\-]/i);
+const passportSections=text.split(/PEOPLE['’]?\s*S\s*REPUBLIC\s+OF\s+BANGLADESH/i).slice(1).map(part=>part.split(/P\s*[<«]\s*BGD/i)[0]);
+const biodata=passportSections.length?passportSections[passportSections.length-1].split(/\r?\n/).map(x=>x.trim()).filter(Boolean):[];
+function printedNext(label){for(let i=0;i<biodata.length;i++){if(!label.test(biodata[i]))continue;for(let j=i+1;j<=Math.min(i+2,biodata.length-1);j++){const raw=biodata[j];if(/(?:surname|sumame|given\s*name|place\s*of\s*birth|date\s*of|nationality|passport|personal\s*no|authority|signature)/i.test(raw))break;const value=tidy(raw);if(value&&value.length<=40)return value}}return ''}
+const given=printedNext(/\bgiven\s*name\b/i);
+const surname=printedNext(/\b(?:surname|sumame)\b/i);
+const name=given&&surname?given+' '+surname:'';
 const passport=get(/(?:passport\s*(?:no\.?|number|#)|document\s*no\.?)\s*[:#-]?\s*([A-Z0-9 ]{0,20})/i).replace(/\s/g,'').toUpperCase();
 const datePattern=/\d{4}[-./]\d{1,2}[-./]\d{1,2}|\d{1,2}[-./ ](?:\d{1,2}|[A-Z]{3})[-./ ]\d{4}/i;
 const dob=(get(/(?:date\s*of\s*birth|birth\s*date|dob)\s*[:\-]?\s*(.*)$/i).match(datePattern)||[])[0]||'';
 const doe=(get(/(?:date\s*of\s*expiry|expiry\s*date|expiration\s*date|date\s*of\s*expiration|doe)\s*[:\-]?\s*(.*)$/i).match(datePattern)||[])[0]||'';
-// District ONLY from "Place of Birth" / "জন্মস্থান" label, not address or authority.
-const birthPlace=valueAfterLabel(/(?:place\s*of\s*birth|birth\s*place|জন্মস্থান)\s*[:：\-]?/i);
-const district=districtNames.find(x=>new RegExp('(?:^|[^A-Z])'+x+'(?:$|[^A-Z])').test(birthPlace))||'';
+// District ONLY from the printed Place of Birth line's following value.
+const placeLine=biodata.findIndex(x=>/place\s*of\s*birth|জন্মস্থান/i.test(x));
+let district='';
+if(placeLine>=0){const next=biodata[placeLine+1]||'';const birthValue=next.toUpperCase().replace(/^[^A-Z]*[MF]\s+(?=[A-Z])/,'').replace(/\b\d{3,}\b/g,' ');district=districtNames.find(x=>new RegExp('(?:^|[^A-Z])'+x+'(?:$|[^A-Z])').test(birthValue))||''}
 $('name').value=name;$('passport').value=mrz?.passport||passport;$('dob').value=mrz?.dob||normalizeDate(dob);$('doe').value=mrz?.doe||normalizeDate(doe);$('district').value=district;
 $('mrzStatus').textContent=mrz?'MRZ found: '+mrz.score+'/3 field checksums passed (passport number, birth date, expiry date). '+(mrz.score===3?'All three passed; visually verify.':'Unverified fields need manual review.'):'MRZ not detected; using label-based extraction. Review all fields.';
 }
