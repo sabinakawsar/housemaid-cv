@@ -57,6 +57,12 @@ if(!printedName){
  const candidate=first.find(s=>/\b(?:MD|MST|ABU|MOHAMMAD)\s+[A-Z]{3,}(?:\s+[A-Z]{3,}){0,2}\b/.test(s));
  if(candidate){const m=candidate.match(/\b(?:MD|MST|ABU|MOHAMMAD)\s+[A-Z]{3,}(?:\s+[A-Z]{3,}){0,2}\b/);if(m)printedName=m[0]}
 }
+// Use the personal-data name only when it agrees with the MRZ surname.
+// This avoids swallowing OCR noise after the given name.
+const mrzSurname=lines.map(s=>s.match(/^P<BGD([A-Z]{3,}?)(?:<[LK])?<<|^P<BGD([A-Z]{3,})<[LK]<MD</)).find(Boolean);
+const surnameHint=mrzSurname?(mrzSurname[1]||mrzSurname[2]):'';
+const personalName=headerLines.map(s=>s.match(/\\b(MD|MST)\\s+([A-Z]{3,})\\s+([A-Z]{3,})\\b/)).find(m=>m&&m[3]===surnameHint);
+if(personalName)printedName=personalName[1]+' '+personalName[2]+' '+personalName[3];
 if(best&&printedName)best.name=printedName;
 for(const id of ['name','passport','dob','doe'])$(id).value=best?.[id]||'';
 $('validation').textContent=best?'MRZ detected · '+best.score+'/3 checks passed. Verify all fields.':'MRZ not found. Try a sharper image or paste the MRZ lines.';
