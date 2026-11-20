@@ -1,103 +1,47 @@
-<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Housemaid CV — Candidate Image Upload & Extraction</title>
-<style>
-:root{font-family:Inter,system-ui,-apple-system,Segoe UI,sans-serif;color:#14233b;background:#f4f7fc}*{box-sizing:border-box}body{margin:0}header{background:#101c32;color:white;padding:19px 22px}header div,main{max-width:900px;margin:auto}header a{color:#c6e6ff;text-decoration:none}main{padding:30px 20px}h1{margin:0 0 8px;font-size:clamp(24px,4vw,34px)}p{color:#65738b;line-height:1.6}.panel{background:white;border:1px solid #e1e8f2;border-radius:18px;padding:22px;margin:18px 0;box-shadow:0 10px 28px #14233b09}.row{display:grid;grid-template-columns:1fr 1fr;gap:14px}.field label{display:block;font-size:13px;font-weight:700;margin-bottom:6px}.field input,.field textarea{width:100%;padding:12px;border:1px solid #cdd8e6;border-radius:9px;font:inherit;background:white}.field textarea{min-height:130px;resize:vertical}.field{margin-bottom:14px}.btn{border:0;background:#2358b9;color:white;padding:12px 17px;border-radius:10px;font-weight:700;cursor:pointer}.btn:disabled{opacity:.55;cursor:not-allowed}.btn.alt{background:#eaf0f8;color:#20344e}.actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.hint{font-size:13px;color:#697b93}.status{font-size:14px;font-weight:600;color:#245c7a}.warning{background:#fff7e8;border:1px solid #f1dcaa;border-radius:12px;padding:13px;color:#70551c;font-size:13px}.photo{display:block;max-width:100%;max-height:380px;object-fit:contain;border-radius:10px;margin-top:12px}.hidden{display:none}progress{width:100%;height:12px;margin:12px 0}.pill{display:inline-block;background:#e5f5ed;color:#136747;border-radius:99px;padding:5px 10px;font-size:12px;font-weight:700}small{color:#718099}a{color:#2358b9}@media(max-width:650px){.row{grid-template-columns:1fr}.panel{padding:16px}}
-header{padding:20px 0}header>div{display:block;padding:0 20px}header strong{font-size:18px}main{padding-top:30px}.panel{border-radius:20px;padding:24px}.upload-zone{border:2px dashed #a7b9d0;border-radius:16px;background:#f9fbfe;text-align:center;padding:26px;margin-bottom:16px}.upload-zone input{max-width:100%;margin-top:12px}.upload-zone strong{display:block;font-size:17px}.upload-zone p{font-size:13px;margin:6px 0}.panel h2{margin-top:0}.pill{display:none}@media(max-width:650px){.panel{padding:17px}}
-</style></head><body>
-<header><div><strong>CV &nbsp; Housemaid CV Workspace</strong><p style="color:#c5d2e8;margin:4px 0 0">Image upload, preview and extraction — one workspace</p></div></header>
-<main><span class="pill">Candidate workspace</span><h1>Candidate Image Upload</h1><p>Upload a clear image, preview it, extract candidate details, and correct the results—all on this page. Candidate records can be saved locally in this browser for testing.</p>
-<div class="warning"><strong>Privacy:</strong> PaddleOCR processes images locally in your browser. OCR models and JavaScript are downloaded from external CDNs. Local records are not encrypted; use fictional test documents only. Local candidate records are not encrypted, synced or backed up; do not save real identity information.</div>
-<section class="panel"><h2>Image workspace</h2><p class="hint">PaddleOCR.js · Local browser recognition · No API key or passport image upload. First run downloads OCR models.</p><div class="upload-zone"><strong>🖼️ Choose a candidate image</strong><p>JPG, PNG or WEBP · Maximum 10 MB</p><input id="image" type="file" accept="image/jpeg,image/png,image/webp" aria-label="Choose candidate image"></div><img id="preview" class="photo hidden" alt="Selected document preview"><div class="actions"><button id="scan" class="btn" disabled>Extract text</button><button id="clear" class="btn alt" type="button">Clear</button><span id="status" class="status" role="status">Choose an image to begin.</span></div><progress id="progress" class="hidden" max="100" value="0"></progress></section>
-<section class="panel"><h2>Extracted candidate details</h2><p class="hint">MRZ checksums are checked where possible, but all details still require visual confirmation against the original.</p><p id="mrzStatus" class="hint">MRZ: not scanned yet.</p><div class="row"><div class="field"><label for="name">Full name</label><input id="name" autocomplete="off"></div><div class="field"><label for="passport">Passport number</label><input id="passport" autocomplete="off"></div><div class="field"><label for="dob">Date of birth</label><input id="dob" placeholder="YYYY-MM-DD"></div><div class="field"><label for="doe">Passport expiry date</label><input id="doe" placeholder="YYYY-MM-DD"></div><div class="field"><label for="district">District (from Place of Birth)</label><input id="district"></div></div><div class="actions"><button id="copy" class="btn alt" type="button">Copy reviewed fields</button><button id="saveCandidate" class="btn" type="button">Save candidate locally</button><button id="cancelEdit" class="btn alt hidden" type="button">Cancel edit</button></div><p id="dbStatus" class="hint" role="status">Local database is loading…</p></section>
-<section class="panel"><h2>Saved candidates <span id="candidateCount" class="pill" style="display:inline-block">0</span></h2><p class="hint">Stored only in this browser on this device. Clearing site data or using another device will not preserve these records. Use fictional data only.</p><div class="actions"><input id="searchCandidates" type="search" placeholder="Search by name or district" aria-label="Search saved candidates" style="flex:1;min-width:180px;padding:11px;border:1px solid #cdd8e6;border-radius:9px"><button id="exportCandidates" type="button" class="btn alt">Export test JSON</button></div><div id="candidateList" style="margin-top:15px"></div></section><section class="panel"><h2>Raw OCR text</h2><div class="field"><label for="raw">Inspect or edit recognized text</label><textarea id="raw" rows="8" spellcheck="false"></textarea></div><button id="reparse" class="btn alt" type="button">Re-extract fields from text</button></section>
-<p class="hint">OCR may misread fields. MRZ check digits detect some OCR errors but do not authenticate a document. District is inferred from Place of Birth first; if that is unreadable, a fallback guess may be used. Confirm manually.</p>
-</main>
-
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Housemaid CV — MRZ Scanner</title>
+<style>body{font:16px system-ui;background:#f4f7fb;color:#15243a;margin:0}main{max-width:760px;margin:35px auto;padding:0 16px}section{background:white;border:1px solid #dde5ef;border-radius:14px;padding:22px;margin:16px 0}h1{font-size:28px}label{display:block;margin:13px 0 5px;font-weight:600}input,textarea{box-sizing:border-box;width:100%;padding:11px;border:1px solid #bdcad9;border-radius:8px;font:inherit}textarea{height:130px}button{background:#2459b9;color:white;border:0;border-radius:8px;padding:12px 18px;cursor:pointer;margin:12px 8px 0 0}button:disabled{opacity:.5}img{max-width:100%;max-height:280px;display:block;margin-top:15px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:0 16px}@media(max-width:550px){.grid{display:block}}small{color:#61718a}#status{font-weight:600}</style>
+<main><h1>Passport MRZ Scanner</h1><p>One scan. Read the two MRZ lines at the bottom of a passport. Review before use.</p>
+<section><label>Passport image</label><input type="file" id="file" accept="image/*"><img id="preview" hidden><button id="scan" disabled>Scan MRZ</button><p id="status">Choose a passport image.</p><small>Free Tesseract.js OCR runs in your browser. The language model downloads on first use; images are not sent to our server.</small></section>
+<section><h2>Extracted details</h2><div class="grid"><div><label>Full name</label><input id="name"></div><div><label>Passport number</label><input id="passport"></div><div><label>Date of birth</label><input id="dob"></div><div><label>Expiry date</label><input id="doe"></div><div><label>District (manual)</label><input id="district" placeholder="Not encoded in MRZ"></div></div><p id="validation"></p></section>
+<section><label>Raw MRZ OCR (editable)</label><textarea id="raw" placeholder="Paste the two MRZ lines here to test without scanning"></textarea><button id="parse">Parse text</button></section></main>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
 <script>
-(()=>{'use strict';
-const $=id=>document.getElementById(id), ids=['name','passport','dob','doe','district'];let url=null,worker=null,busy=false,ocrPromise=null;
-const setStatus=s=>$('status').textContent=s;
-
-const DB_NAME='housemaid-cv-prototype',STORE='candidates';let editingId=null;
-function openDB(){return new Promise((resolve,reject)=>{if(!('indexedDB'in window)){reject(new Error('IndexedDB is not supported in this browser.'));return}const req=indexedDB.open(DB_NAME,1);req.onupgradeneeded=()=>{const db=req.result;if(!db.objectStoreNames.contains(STORE)){const s=db.createObjectStore(STORE,{keyPath:'id'});s.createIndex('updatedAt','updatedAt')}};req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error)})}
-async function dbAction(mode,fn){const db=await openDB();return new Promise((resolve,reject)=>{const tx=db.transaction(STORE,mode),store=tx.objectStore(STORE);let result;try{const request=fn(store);if(request){request.onsuccess=()=>result=request.result;request.onerror=()=>reject(request.error)}}catch(e){db.close();reject(e);return}tx.oncomplete=()=>{db.close();resolve(result)};tx.onerror=()=>{db.close();reject(tx.error)};tx.onabort=()=>{db.close();reject(tx.error||new Error('Database transaction aborted'))}})}
-const readAll=()=>dbAction('readonly',s=>s.getAll());
-const setDbStatus=s=>$('dbStatus').textContent=s;
-const escapeHtml=s=>String(s??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
-const values=()=>Object.fromEntries(ids.map(id=>[id,$(id).value.trim()]));
-function validFields(v){if(!v.name||!v.passport||!v.dob||!v.doe||!v.district)return 'Please review and complete all five fields before saving.';if(!/^\d{4}-\d{2}-\d{2}$/.test(v.dob)||!/^\d{4}-\d{2}-\d{2}$/.test(v.doe)||!normalizeDate(v.dob)||!normalizeDate(v.doe))return 'Please enter valid dates in YYYY-MM-DD format.';return ''}
-async function renderCandidates(){try{const items=(await readAll()).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt));$('candidateCount').textContent=items.length;const q=$('searchCandidates').value.toLowerCase();const matches=items.filter(x=>(x.name+' '+x.district).toLowerCase().includes(q));const el=$('candidateList');el.replaceChildren();if(!matches.length){el.textContent=items.length?'No matching candidates.':'No saved candidates yet.';return}for(const x of matches){const card=document.createElement('div');card.style.cssText='border:1px solid #e0e8f2;border-radius:12px;padding:13px;margin:9px 0;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap';const info=document.createElement('div');const strong=document.createElement('strong');strong.textContent=x.name;const meta=document.createElement('div');meta.className='hint';meta.textContent=x.district+' · DOB '+x.dob+' · Updated '+new Date(x.updatedAt).toLocaleDateString();info.append(strong,meta);const actions=document.createElement('div');actions.className='actions';const edit=document.createElement('button');edit.className='btn alt';edit.textContent='Edit';edit.onclick=()=>{editingId=x.id;ids.forEach(id=>$(id).value=x[id]||'');$('cancelEdit').classList.remove('hidden');$('saveCandidate').textContent='Update candidate';setDbStatus('Editing '+x.name+'. Review fields, then update.');$('name').focus()};const del=document.createElement('button');del.className='btn alt';del.textContent='Delete';del.onclick=async()=>{if(!confirm('Delete this local test record? This cannot be undone.'))return;try{await dbAction('readwrite',s=>s.delete(x.id));if(editingId===x.id)cancelEdit();setDbStatus('Candidate deleted locally.');await renderCandidates()}catch(e){setDbStatus('Delete failed: '+e.message)}};actions.append(edit,del);card.append(info,actions);el.append(card)}}catch(e){setDbStatus('Local database error: '+e.message)}}
-function cancelEdit(){editingId=null;$('saveCandidate').textContent='Save candidate locally';$('cancelEdit').classList.add('hidden');ids.forEach(id=>$(id).value='')}
-$('cancelEdit').addEventListener('click',cancelEdit);
-$('searchCandidates').addEventListener('input',renderCandidates);
-$('saveCandidate').addEventListener('click',async()=>{const v=values(),err=validFields(v);if(err){setDbStatus(err);return}try{const all=await readAll();const duplicate=all.find(x=>x.passport.toUpperCase()===v.passport.toUpperCase()&&x.id!==editingId);if(duplicate){setDbStatus('A record with this passport number already exists. Edit that record instead.');return}const previous=editingId?all.find(x=>x.id===editingId):null;if(editingId&&!previous){setDbStatus('Record no longer exists.');return}const record={...v,id:editingId||crypto.randomUUID(),createdAt:previous?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()};await dbAction('readwrite',s=>s.put(record));editingId=null;$('saveCandidate').textContent='Save candidate locally';$('cancelEdit').classList.add('hidden');setDbStatus('Saved in this browser only. Not synced or encrypted.');await renderCandidates()}catch(e){setDbStatus('Save failed: '+e.message)}});
-$('exportCandidates').addEventListener('click',async()=>{try{const data=await readAll();const blob=new Blob([JSON.stringify({format:'housemaid-cv-test-v1',candidates:data},null,2)],{type:'application/json'});const link=document.createElement('a'),url=URL.createObjectURL(blob);link.href=url;link.download='candidate-test-data.json';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);setDbStatus('Exported unencrypted JSON. Store it securely and use fictional records only.')}catch(e){setDbStatus('Export failed: '+e.message)}});
-renderCandidates();
-
-function reset(){$('mrzStatus').textContent='MRZ: not scanned yet.';if(url){URL.revokeObjectURL(url);url=null}$('image').value='';$('preview').src='';$('preview').classList.add('hidden');$('raw').value='';ids.forEach(id=>$(id).value='');$('scan').disabled=true;$('progress').classList.add('hidden');setStatus('Choose an image to begin.')}
-$('image').addEventListener('change',()=>{const f=$('image').files[0];if(!f)return;const valid=['image/jpeg','image/png','image/webp'];if(!valid.includes(f.type)||f.size>10*1024*1024){reset();setStatus('Use JPG, PNG, or WEBP under 10 MB.');return}if(url)URL.revokeObjectURL(url);url=URL.createObjectURL(f);$('preview').src=url;$('preview').classList.remove('hidden');$('scan').disabled=false;setStatus('Ready to extract.')});
-$('clear').addEventListener('click',()=>{if(!busy)reset()});
-const normalizeDate=s=>{if(!s)return '';let t=s.trim().replace(/[.\/]/g,'-').replace(/\s+/g,'-').toUpperCase();const months={JAN:'01',FEB:'02',MAR:'03',APR:'04',MAY:'05',JUN:'06',JUL:'07',AUG:'08',SEP:'09',OCT:'10',NOV:'11',DEC:'12'};let m=t.match(/^(\d{1,2})-([A-Z]{3})-(\d{4})$/);if(m&&months[m[2]])t=m[3]+'-'+months[m[2]]+'-'+m[1].padStart(2,'0');m=t.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);if(m)t=m[3]+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0');m=t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);if(!m)return '';t=m[1]+'-'+m[2].padStart(2,'0')+'-'+m[3].padStart(2,'0');const d=new Date(t+'T00:00:00Z');return !Number.isNaN(d.getTime())&&d.toISOString().slice(0,10)===t?t:''};
-const districtNames=['BAGERHAT','BANDARBAN','BARGUNA','BARISHAL','BARISAL','BHOLA','BOGURA','BOGRA','BRAHMANBARIA','CHANDPUR','CHAPAINAWABGANJ','CHATTOGRAM','CHITTAGONG','CHUADANGA','COXS BAZAR','COX BAZAR','CUMILLA','COMILLA','DHAKA','DINAJPUR','FARIDPUR','FENI','GAIBANDHA','GAZIPUR','GOPALGANJ','HABIGANJ','JAMALPUR','JASHORE','JESSORE','JHALOKATI','JHENAIDAH','JOYPURHAT','KHAGRACHHARI','KHULNA','KISHOREGANJ','KURIGRAM','KUSHTIA','LAKSHMIPUR','LALMONIRHAT','MADARIPUR','MAGURA','MANIKGANJ','MEHERPUR','MOULVIBAZAR','MUNSHIGANJ','MYMENSINGH','NAOGAON','NARAIL','NARAYANGANJ','NARSINGDI','NATORE','NETROKONA','NILPHAMARI','NOAKHALI','PABNA','PANCHAGARH','PATUAKHALI','PIROJPUR','RAJBARI','RAJSHAHI','RANGAMATI','RANGPUR','SATKHIRA','SHARIATPUR','SHERPUR','SIRAJGANJ','SUNAMGANJ','SYLHET','TANGAIL','THAKURGAON'];
-function checkDigit(str){const w=[7,3,1];let sum=0;for(let i=0;i<str.length;i++){const x=str[i],v=x==='<'?0:/[0-9]/.test(x)?+x:/[A-Z]/.test(x)?x.charCodeAt(0)-55:NaN;if(Number.isNaN(v))return null;sum+=v*w[i%3]}return String(sum%10)}
-function mrzDate(raw,type){if(!/^\d{6}$/.test(raw))return '';const yy=+raw.slice(0,2),mm=raw.slice(2,4),dd=raw.slice(4,6),now=new Date().getUTCFullYear();let year=2000+yy;if(type==='birth'&&year>now)year-=100;if(type==='expiry'&&year<now-15)year+=100;return normalizeDate(year+'-'+mm+'-'+dd)}
-function getMRZ(text){const lines=text.toUpperCase().split(/\r?\n/).map(s=>s.replace(/[^A-Z0-9<]/g,''));let best=null;for(let i=0;i<lines.length;i++){const a=lines[i];if(!a.startsWith('P<')||a.length<30)continue;for(let j=i+1;j<Math.min(lines.length,i+4);j++){const b=lines[j];if(b.length<40)continue;const namePart=a.slice(5).split('<<');const surname=(namePart[0]||'').replace(/<+/g,' ').trim();const given=(namePart[1]||'').split(/<{2,}/)[0].replace(/<+/g,' ').trim();const passport=b.slice(0,9).replace(/</g,'').replace(/O/g,'0');const passportCheck=checkDigit(b.slice(0,9))===b[9];const birth=b.slice(13,19).replace(/[OQD]/g,'0').replace(/[IL]/g,'1').replace(/S/g,'5').replace(/B/g,'8'),birthCheck=checkDigit(birth)===b[19]&&!!mrzDate(birth,'birth');const expiry=b.slice(21,27).replace(/[OQD]/g,'0').replace(/[IL]/g,'1').replace(/S/g,'5').replace(/B/g,'8'),expiryCheck=checkDigit(expiry)===b[27]&&!!mrzDate(expiry,'expiry');const score=[passportCheck,birthCheck,expiryCheck].filter(Boolean).length;const candidate={name:[given,surname].filter(Boolean).join(' '),passport:passportCheck?passport:'',dob:birthCheck?mrzDate(birth,'birth'):'',doe:expiryCheck?mrzDate(expiry,'expiry'):'',score,checks:{passport:passportCheck,birth:birthCheck,expiry:expiryCheck}};if(!best||score>best.score)best=candidate;}}return best}
-function parse(text){const lines=text.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);const get=(regex)=>{for(let i=0;i<lines.length;i++){const m=lines[i].match(regex);if(m){const v=(m[1]||'').trim();return v||lines[i+1]||''}}return ''};
-const mrz=getMRZ(text);
-// Single OCR scan: prioritize clean personal-data name and printed passport labels.
-const tidy=s=>String(s||'').toUpperCase().replace(/[^A-Z ]/g,' ').replace(/\s+/g,' ').trim();
-const passportSections=text.split(/PEOPLE['’]?\s*S\s*REPUBLIC\s+OF\s+BANGLADESH/i).slice(1);
-const biodata=passportSections.length?passportSections[passportSections.length-1].split(/\r?\n/).map(s=>s.trim()).filter(Boolean):[];
-function extractName(source){
-const rows=source.split(/\r?\n/),top=source.split(/PEOPLE['’]?\s*S\s*REPUBLIC\s+OF\s+BANGLADESH/i)[0];
-const father=top.search(/FATHER.?S?\s*NAME|FATHERS\s+NAE|IORS\s+NAE/i);
-const personal=(father>=0?top.slice(0,father):top.split(/EMERGENCY\s+CONTACT/i)[0]).split(/\r?\n/);
-const names=[];
-for(const line of personal){const m=tidy(line).match(/\b(MD|MST)\s+([A-Z]{3,})(?:\s+([A-Z]{3,}))?\b/);if(m&&!/^(PERSONAL|EMERGENCY|CONTACT|DATA|FATHER|MOTHER|NAME|SRE|ANE)$/.test(m[2]))names.push([m[1],m[2],m[3]||''])}
-const gi=rows.findIndex(x=>/\bgiven\s*name\b/i.test(x));
-let given='';
-if(gi>=0){const m=tidy(rows[gi+1]||'').match(/\b(MD|MST)\s+([A-Z]{3,})\b|^([A-Z]{4,})\b/);if(m)given=m[1]?m[1]+' '+m[2]:m[3]}
-const si=rows.findIndex(x=>/\b(?:surname|sumame)\b/i.test(x));let surname='';
-if(si>=0){for(let j=si+1;j<Math.min(si+4,gi<0?si+4:gi);j++){const v=tidy(rows[j]);if(/GIVEN\s+NAME/.test(v))break;const m=v.match(/\b([A-Z]{3,})\b/);if(m&&!['NAME','GIVEN','SURNAME'].includes(m[1])){surname=m[1];break}}}
-if(!surname&&gi>=0){for(let j=gi-1;j>=Math.max(0,gi-5);j--){if(/GIVEN\s+NAME|PASSPORT|COUNTRY|REPUBLIC/i.test(rows[j]))continue;const m=tidy(rows[j]).match(/\b([A-Z]{4,})\b/);if(m&&!['NAME','GIVEN','SURNAME','SUMAME'].includes(m[1])){surname=m[1];break}}}
-if(given&&surname)return given+' '+surname;
-if(given){const parts=given.split(' '),n=names.find(n=>n[0]===parts[0]&&n[1]===parts[1]&&n[2]);if(n)return given+' '+n[2]}
-const n=names.find(n=>n[2]);if(n)return n.join(' ');
-const partial=names.find(n=>n[1]);return partial?partial.slice(0,2).join(' '):'';
+const $=id=>document.getElementById(id);
+let worker=null,busy=false;
+$('file').onchange=()=>{const f=$('file').files[0];if(!f)return;$('preview').src=URL.createObjectURL(f);$('preview').hidden=false;$('scan').disabled=false};
+const digit=s=>{let sum=0;for(let i=0;i<s.length;i++){const c=s[i],v=c==='<'?0:/\d/.test(c)?+c:c.charCodeAt(0)-55;sum+=v*[7,3,1][i%3]}return String(sum%10)};
+const date=(s,birth)=>{if(!/^\d{6}$/.test(s))return '';let y=2000+ +s.slice(0,2);const now=new Date().getFullYear();if(birth&&y>now)y-=100;if(!birth&&y<now-15)y+=100;const iso=y+'-'+s.slice(2,4)+'-'+s.slice(4,6);return !Number.isNaN(Date.parse(iso))?iso:''};
+function parse(text){
+const lines=text.toUpperCase().split(/\r?\n/).map(s=>s.replace(/[^A-Z0-9<]/g,''));
+let best=null;
+for(let i=0;i<lines.length;i++){
+const a=lines[i];if(!a.startsWith('P<BGD'))continue;
+const m=a.match(/^P<BGD([A-Z]{2,})<<(.+)$/);if(!m)continue;
+const surname=m[1],given=m[2].split(/<{2,}|[LK]{5,}/)[0].split('<').filter(x=>x&&x!=='L'&&x!=='K').join(' ').trim();
+for(let j=i+1;j<=Math.min(i+2,lines.length-1);j++){
+const b=lines[j];if(!/^[A-Z0-9<]{40,}$/.test(b))continue;
+const p=b.slice(0,9),dob=b.slice(13,19),exp=b.slice(21,27);
+const checks=[digit(p)===b[9],digit(dob)===b[19],digit(exp)===b[27]];
+const score=checks.filter(Boolean).length;
+const item={name:(given+' '+surname).trim(),passport:checks[0]?p.replace(/</g,''):'',dob:checks[1]?date(dob,true):'',doe:checks[2]?date(exp,false):'',score};
+if(!best||item.score>best.score)best=item;
+}}
+for(const id of ['name','passport','dob','doe'])$(id).value=best?.[id]||'';
+$('validation').textContent=best?'MRZ detected · '+best.score+'/3 checks passed. Verify all fields.':'MRZ not found. Try a sharper image or paste the MRZ lines.';
+return best;
 }
-// MRZ name is structurally delimited, unlike OCR-noisy printed names.
-// Reject malformed delimiters and prefer a clean MRZ over guesses from printed lines.
-function mrzName(source){
- const candidates=source.toUpperCase().split(/\r?\n/).map(s=>s.replace(/[^A-Z0-9<]/g,'')).filter(s=>s.startsWith('P<BGD'));
- for(const line of candidates.slice().reverse()){
-  const match=line.match(/^P<BGD([A-Z]+)<<([A-Z]+(?:<[A-Z]+)*)(?:<<|<{3,}|$)/);
-  if(!match)continue;
-  const surname=match[1],given=match[2].split('<').filter(t=>t&&!/^(?:L{4,}|K{4,}|[LK]{8,})$/.test(t)).join(' ').trim();
-  if(surname.length>=3&&given.length>=2)return given+' '+surname;
- }
- return '';
-}
-const name=mrzName(text)||extractName(text);
-
-const passport=get(/(?:passport\s*(?:no\.?|number|#)|document\s*no\.?)\s*[:#-]?\s*([A-Z0-9 ]{0,20})/i).replace(/\s/g,'').toUpperCase();
-const datePattern=/\d{4}[-./]\d{1,2}[-./]\d{1,2}|\d{1,2}[-./ ](?:\d{1,2}|[A-Z]{3})[-./ ]\d{4}/i;
-const dob=(get(/(?:date\s*of\s*birth|birth\s*date|dob)\s*[:\-]?\s*(.*)$/i).match(datePattern)||[])[0]||'';
-const doe=(get(/(?:date\s*of\s*expiry|expiry\s*date|expiration\s*date|date\s*of\s*expiration|doe)\s*[:\-]?\s*(.*)$/i).match(datePattern)||[])[0]||'';
-// District ONLY from the printed Place of Birth line's following value.
-const placeLine=biodata.findIndex(x=>/place\s*of\s*birth|জন্মস্থান/i.test(x));
-let district='';
-if(placeLine>=0){const next=biodata[placeLine+1]||'';const birthValue=next.toUpperCase().replace(/^[^A-Z]*[MF]\s+(?=[A-Z])/,'').replace(/\b\d{3,}\b/g,' ');district=districtNames.find(x=>new RegExp('(?:^|[^A-Z])'+x+'(?:$|[^A-Z])').test(birthValue))||''}
-$('name').value=name;$('passport').value=mrz?.passport||passport;$('dob').value=mrz?.dob||normalizeDate(dob);$('doe').value=mrz?.doe||normalizeDate(doe);$('district').value=district;
-$('mrzStatus').textContent=mrz?'MRZ found: '+mrz.score+'/3 field checksums passed (passport number, birth date, expiry date). '+(mrz.score===3?'All three passed; visually verify.':'Unverified fields need manual review.'):'MRZ not detected; using label-based extraction. Review all fields.';
-}
-$('reparse').addEventListener('click',()=>parse($('raw').value));
-$('scan').addEventListener('click',async()=>{if(busy||!url)return;busy=true;$('scan').disabled=true;$('clear').disabled=true;$('progress').classList.remove('hidden');$('progress').value=0;setStatus('Preparing local PaddleOCR…');try{const file=$('image').files[0];if(!file)throw Error('Select an image first.');
-if(!ocrPromise){setStatus('Downloading PaddleOCR models (first run may take time)…');ocrPromise=import('https://cdn.jsdelivr.net/npm/@paddleocr/paddleocr-js@0.4.2/+esm').then(({PaddleOCR})=>PaddleOCR.create({lang:'en',ocrVersion:'PP-OCRv5',ortOptions:{backend:'auto'}})).catch(e=>{ocrPromise=null;throw e})}
-const ocr=await ocrPromise;setStatus('Recognizing image locally with PaddleOCR…');
-const [result]=await ocr.predict(file);
-const items=(result?.items||[]).slice().sort((a,b)=>{const ay=Math.min(...(a.poly||[]).map(p=>Array.isArray(p)?p[1]:p.y||0));const by=Math.min(...(b.poly||[]).map(p=>Array.isArray(p)?p[1]:p.y||0));return ay-by});
-const combined=items.map(item=>item.text||'').join('\\n');if(!combined.trim())throw Error('No text recognized.');
-$('raw').value=combined;parse(combined);setStatus('PaddleOCR scan complete. Review all fields.');}catch(e){setStatus('OCR failed: '+(e.message||'Unknown error'))}finally{if(worker){await worker.terminate().catch(()=>{});worker=null}busy=false;$('scan').disabled=!url;$('clear').disabled=false;$('progress').classList.add('hidden')}});
-$('copy').addEventListener('click',async()=>{const data=ids.map(id=>id.toUpperCase()+': '+$(id).value).join('\n');try{await navigator.clipboard.writeText(data);setStatus('Fields copied to clipboard.')}catch{setStatus('Clipboard unavailable. Select and copy the fields manually.')}});
-})();
-</script></body></html>
+$('parse').onclick=()=>parse($('raw').value);
+$('scan').onclick=async()=>{
+if(busy)return;busy=true;$('scan').disabled=true;$('status').textContent='Reading MRZ…';
+try{
+if(!worker)worker=await Tesseract.createWorker('eng',1);
+const image=$('preview');const canvas=document.createElement('canvas');const w=image.naturalWidth,h=image.naturalHeight;
+if(!w||!h)throw Error('Image not loaded');
+canvas.width=w;canvas.height=Math.round(h*.34);canvas.getContext('2d').drawImage(image,0,h-canvas.height,w,canvas.height,0,0,w,canvas.height);
+await worker.setParameters({tessedit_char_whitelist:'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789<',preserve_interword_spaces:'1'});
+const result=await worker.recognize(canvas);
+$('raw').value=result.data.text;parse(result.data.text);$('status').textContent='Scan complete. Review the fields.';
+}catch(e){$('status').textContent='Scan failed: '+e.message}finally{busy=false;$('scan').disabled=false}
+};
+</script></html>
