@@ -48,13 +48,14 @@ const cleanPerson=s=>s.toUpperCase().replace(/[^A-Z .'-]/g,' ').replace(/\s+/g,'
 const fieldValue=(label)=>{for(let i=0;i<lines.length;i++){const line=lines[i];const match=line.match(label);if(!match)continue;let tail=line.slice(match.index+match[0].length).replace(/^[\s:\/\\-]+/,'');let value=cleanPerson(tail);if(value&&value.length>=3&&!/^(NAME|SURNAME|GIVEN|NATIONALITY|PERSONAL|DATE|PASSPORT|BGD|TYPE|COUNTRY)$/.test(value))return value;for(let j=i+1;j<=Math.min(i+3,lines.length-1);j++){const next=lines[j];if(/(?:nationality|passport|date of|personal no|place of|issuing|authority|father|mother|emergency)/i.test(next))break;value=cleanPerson(next);if(/^[A-Z][A-Z '-]{2,45}$/.test(value)&&!/(?:NAME|SURNAME|GIVEN|BANGLADESH|PEOPLE|REPUBLIC)/.test(value))return value}}return ''};
 // Prefer the passport MRZ name: the 3 checksums validate document fields,
 // not the name itself, so reject suspicious name patterns independently.
-const nameIsClean=s=>{const words=s.trim().split(/\s+/).filter(Boolean);if(words.length<2||words.length>6||words.some(w=>!/^[A-Z]{2,20}$/.test(w)||/^(FN|LN|NAME|GIVEN|SURNAME)$/.test(w)||/(.)\1{3,}/.test(w)))return false;for(let size=1;size<=Math.floor(words.length/2);size++){if(words.slice(0,size).join(' ')===words.slice(size,2*size).join(' '))return false}return true};
-const mrzName=(mrz?.name||'').trim();
-const reliableMrzName=mrz?.score===3&&nameIsClean(mrzName)?mrzName:'';
-const given=fieldValue(/(?:given\s*name|first\s*name)\b/i);
-const surname=fieldValue(/\bsurname\b/i);
-const printedName=(given&&surname?given+' '+surname:'').trim();
-const name=reliableMrzName||(nameIsClean(printedName)?printedName:'');
+// Keep name extraction simple: use passport MRZ first, printed Given Name + Surname as fallback.
+// The MRZ field checksums do not validate the name.
+const tidyName=s=>String(s||'').toUpperCase().replace(/[^A-Z\s'-]/g,' ').split(/\s+/).filter(w=>w&&!/^(FN|LN|GIVEN|SURNAME|NAME)$/.test(w)).join(' ').trim();
+const mrzName=tidyName(mrz?.name);
+const given=tidyName(fieldValue(/(?:given\s*name|first\s*name)\b/i));
+const surname=tidyName(fieldValue(/\bsurname\b/i));
+const printedName=given&&surname?tidyName(given+' '+surname):'';
+const name=mrzName||printedName||'';
 const passport=get(/(?:passport\s*(?:no\.?|number|#)|document\s*no\.?)\s*[:#-]?\s*([A-Z0-9 ]{0,20})/i).replace(/\s/g,'').toUpperCase();
 const datePattern=/\d{4}[-./]\d{1,2}[-./]\d{1,2}|\d{1,2}[-./ ](?:\d{1,2}|[A-Z]{3})[-./ ]\d{4}/i;
 const dob=(get(/(?:date\s*of\s*birth|birth\s*date|dob)\s*[:\-]?\s*(.*)$/i).match(datePattern)||[])[0]||'';
